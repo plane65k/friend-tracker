@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // --- Supabase v2 Realtime subscription ---
+    // --- Supabase v2 Realtime via channel ---
     const channel = supabase.channel('locations_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'locations' }, payload => {
         updateFriendMarker(payload.new);
