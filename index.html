@@ -24,30 +24,31 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
 document.addEventListener('DOMContentLoaded', () => {
-
   const startButton = document.getElementById('startButton');
   startButton.addEventListener('click', async () => {
+
+    // Request orientation permission on iOS
+    if(typeof DeviceOrientationEvent.requestPermission === 'function'){
+      try{
+        const response = await DeviceOrientationEvent.requestPermission();
+        if(response !== 'granted'){ alert('Compass permission denied'); return; }
+      }catch(e){ console.error(e); return; }
+    }
 
     startButton.style.display = 'none';
     const mapDiv = document.getElementById('map');
     mapDiv.style.display = 'block';
 
-    // Supabase setup
+    // Supabase
     const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     let userId = localStorage.getItem('friendtrack_userId');
-    if (!userId) {
-      userId = 'user-' + Math.floor(Math.random() * 1000000);
-      localStorage.setItem('friendtrack_userId', userId);
-    }
+    if (!userId) { userId = 'user-'+Math.floor(Math.random()*1000000); localStorage.setItem('friendtrack_userId',userId); }
 
     const map = L.map('map').setView([0,0],2);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      maxZoom:19,
-      attribution:'&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
 
     let myMarker = null;
     let myHeading = 0;
@@ -57,117 +58,69 @@ document.addEventListener('DOMContentLoaded', () => {
     let compassLine = null;
 
     function updateMyMarker(lat,lng){
-      if(!lat || !lng) return;
-
+      if(!lat||!lng) return;
       if(!myMarker){
-        myMarker = L.circleMarker([lat,lng],{
-          radius:10,
-          color:'#3388ff',
-          fillColor:'#3388ff',
-          fillOpacity:1
-        }).addTo(map);
-      } else {
-        myMarker.setLatLng([lat,lng]);
-      }
+        myMarker = L.circleMarker([lat,lng],{radius:10,color:'#3388ff',fillColor:'#3388ff',fillOpacity:1}).addTo(map);
+      } else myMarker.setLatLng([lat,lng]);
 
-      // Zoom on first location fix
-      if(firstLocationUpdate){
-        map.setView([lat,lng],16);
-        firstLocationUpdate = false;
-      }
+      if(firstLocationUpdate){ map.setView([lat,lng],16); firstLocationUpdate=false; }
 
-      // Update compass line (direction line)
-      const distance = 0.001; // approx 100m
-      const rad = (360 - myHeading) * Math.PI / 180;
-      const lat2 = lat + distance * Math.cos(rad);
-      const lng2 = lng + distance * Math.sin(rad);
-
-      if(!compassLine){
-        compassLine = L.polyline([[lat,lng],[lat2,lng2]], {color:'blue'}).addTo(map);
-      } else {
-        compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
-      }
+      // compass line
+      const distance = 0.001;
+      const rad = (360-myHeading)*Math.PI/180;
+      const lat2 = lat+distance*Math.cos(rad);
+      const lng2 = lng+distance*Math.sin(rad);
+      if(!compassLine){ compassLine=L.polyline([[lat,lng],[lat2,lng2]],{color:'blue'}).addTo(map); }
+      else compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
     }
 
     function updateFriendMarker(data){
-      if(data.user_id === userId) return;
-
-      const pos = [data.lat,data.lng];
+      if(data.user_id===userId) return;
+      const pos=[data.lat,data.lng];
       if(!friendMarkers[data.user_id]){
-        friendMarkers[data.user_id] = L.circleMarker(pos,{
-          radius:8,
-          color:'red',
-          fillColor:'red',
-          fillOpacity:1
-        }).addTo(map);
-
-        // initial line
-        friendLines[data.user_id] = L.polyline([myMarker.getLatLng(), pos],{color:'green'}).addTo(map);
-      } else {
-        friendMarkers[data.user_id].setLatLng(pos);
-        // update line
-        if(myMarker) friendLines[data.user_id].setLatLngs([myMarker.getLatLng(), pos]);
-      }
+        friendMarkers[data.user_id]=L.circleMarker(pos,{radius:8,color:'red',fillColor:'red',fillOpacity:1}).addTo(map);
+        friendLines[data.user_id]=L.polyline([myMarker.getLatLng(),pos],{color:'green'}).addTo(map);
+      } else { friendMarkers[data.user_id].setLatLng(pos); if(myMarker) friendLines[data.user_id].setLatLngs([myMarker.getLatLng(),pos]); }
     }
 
     async function writeLocation(lat,lng,heading){
-      await supabase.from('locations').upsert({
-        user_id: userId,
-        lat: lat,
-        lng: lng,
-        heading: heading,
-        updated_at: new Date()
-      });
+      await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()});
     }
 
     // Realtime subscription
     const channel = supabase.channel('locations_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'locations' }, payload => {
-        updateFriendMarker(payload.new);
-      })
+      .on('postgres_changes',{event:'*',schema:'public',table:'locations'}, payload=>updateFriendMarker(payload.new))
       .subscribe();
 
     // Geolocation
-    if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(pos => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
+    if(navigator.geolocation){
+      navigator.geolocation.watchPosition(pos=>{
+        const lat=pos.coords.latitude,lng=pos.coords.longitude;
         updateMyMarker(lat,lng);
         writeLocation(lat,lng,myHeading);
-
-        // update lines to friends
-        Object.keys(friendMarkers).forEach(uid => {
-          const fmarker = friendMarkers[uid];
-          friendLines[uid].setLatLngs([myMarker.getLatLng(), fmarker.getLatLng()]);
-        });
-
-      }, err => console.error('Geo error', err), { enableHighAccuracy:true, maximumAge:5000, timeout:10000 });
+        Object.keys(friendMarkers).forEach(uid=>{ friendLines[uid].setLatLngs([myMarker.getLatLng(),friendMarkers[uid].getLatLng()]); });
+      },err=>console.error(err),{enableHighAccuracy:true,maximumAge:5000,timeout:10000});
     } else alert('Geolocation not supported');
 
-    // Compass heading
-    if (window.DeviceOrientationEvent) {
-      window.addEventListener('deviceorientationabsolute', e => {
-        if(e.absolute && e.alpha != null){
-          myHeading = e.alpha;
-          if(myMarker) {
-            // update compass line
-            const lat = myMarker.getLatLng().lat;
-            const lng = myMarker.getLatLng().lng;
-            const distance = 0.001;
-            const rad = (360 - myHeading) * Math.PI / 180;
-            const lat2 = lat + distance * Math.cos(rad);
-            const lng2 = lng + distance * Math.sin(rad);
-            if(compassLine) compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
-          }
-        }
-      });
-    }
+    // Compass
+    window.addEventListener('deviceorientation', e=>{
+      let heading=e.alpha;
+      if(typeof e.webkitCompassHeading!=='undefined') heading=e.webkitCompassHeading;
+      if(heading!=null){ myHeading=heading; if(myMarker){
+        const lat=myMarker.getLatLng().lat,lng=myMarker.getLatLng().lng;
+        const distance=0.001;
+        const rad=(360-myHeading)*Math.PI/180;
+        const lat2=lat+distance*Math.cos(rad);
+        const lng2=lng+distance*Math.sin(rad);
+        if(compassLine) compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
+      }}
+    });
 
     // Poll every second
-    setInterval(async () => {
-      const { data, error } = await supabase.from('locations').select('*');
+    setInterval(async()=>{
+      const {data,error}=await supabase.from('locations').select('*');
       if(error) console.error(error);
-      if(data) data.forEach(d => updateFriendMarker(d));
+      if(data) data.forEach(d=>updateFriendMarker(d));
     },1000);
 
   });
