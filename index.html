@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   startButton.addEventListener('click', async () => {
 
-    // Request iOS compass permission
     if(typeof DeviceOrientationEvent.requestPermission === 'function'){
       try{
         const response = await DeviceOrientationEvent.requestPermission();
@@ -41,28 +40,48 @@ document.addEventListener('DOMContentLoaded', () => {
     const mapDiv = document.getElementById('map');
     mapDiv.style.display = 'block';
 
-    // Supabase setup
     const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Unique user ID
     let userId = localStorage.getItem('friendtrack_userId');
     if(!userId){ 
       userId='user-'+Math.floor(Math.random()*1000000); 
       localStorage.setItem('friendtrack_userId',userId); 
     }
 
-    // Map init
     const map = L.map('map').setView([0,0],2);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
 
     let myMarker=null;
     let myHeading=0;
-    let friendMarkers={}; // Stores all other users
+    let friendMarkers={};
     let compassLine=null;
     let firstLocationUpdate=true;
-    const positions=[]; // smoothing
+    const positions=[];
+
+    function getLineToMapEdge(lat,lng,heading){
+      const bounds = map.getBounds();
+      const rad = (360-heading) * Math.PI / 180;
+
+      // Define a large multiplier to guarantee intersection with map bounds
+      let distance = 1000; 
+      let lat2 = lat + distance * Math.cos(rad);
+      let lng2 = lng + distance * Math.sin(rad);
+
+      // Clip to map bounds
+      const north = bounds.getNorth();
+      const south = bounds.getSouth();
+      const east = bounds.getEast();
+      const west = bounds.getWest();
+
+      if(lat2 > north) lat2 = north;
+      if(lat2 < south) lat2 = south;
+      if(lng2 > east) lng2 = east;
+      if(lng2 < west) lng2 = west;
+
+      return [lat2,lng2];
+    }
 
     function updateMyMarker(lat,lng){
       positions.push([lat,lng]);
@@ -82,11 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if(firstLocationUpdate){ map.setView([avgLat,avgLng],16); firstLocationUpdate=false; }
 
-      // Compass line
-      const distance=0.001;
-      const rad=(360-myHeading)*Math.PI/180;
-      const lat2=avgLat+distance*Math.cos(rad);
-      const lng2=avgLng+distance*Math.sin(rad);
+      const [lat2,lng2] = getLineToMapEdge(avgLat,avgLng,myHeading);
       if(!compassLine) compassLine = L.polyline([[avgLat,avgLng],[lat2,lng2]],{color:'#1a73e8', weight:2}).addTo(map);
       else compassLine.setLatLngs([[avgLat,avgLng],[lat2,lng2]]);
     }
@@ -109,19 +124,16 @@ document.addEventListener('DOMContentLoaded', () => {
       await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()});
     }
 
-    // Remove current user on page close
     window.addEventListener('beforeunload', async ()=>{
       await supabase.from('locations').delete().eq('user_id', userId);
     });
 
-    // Realtime subscription
     const channel = supabase.channel('locations_channel')
       .on('postgres_changes',{event:'*',schema:'public',table:'locations'}, payload=>{
         updateFriendMarker(payload.new);
       })
       .subscribe();
 
-    // Watch geolocation with max accuracy
     if(navigator.geolocation){
       navigator.geolocation.watchPosition(pos=>{
         const lat=pos.coords.latitude;
@@ -131,7 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }, err=>console.error(err), { enableHighAccuracy:true, maximumAge:0, timeout:30000 });
     } else alert('Geolocation not supported');
 
-    // Compass heading
     window.addEventListener('deviceorientation', e=>{
       let heading=e.alpha;
       if(typeof e.webkitCompassHeading!=='undefined') heading=e.webkitCompassHeading;
@@ -140,27 +151,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if(myMarker){
           const lat=myMarker.getLatLng().lat;
           const lng=myMarker.getLatLng().lng;
-          const distance=0.001;
-          const rad=(360-myHeading)*Math.PI/180;
-          const lat2=lat+distance*Math.cos(rad);
-          const lng2=lng+distance*Math.sin(rad);
+          const [lat2,lng2] = getLineToMapEdge(lat,lng,myHeading);
           if(compassLine) compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
         }
       }
     });
 
-    // Poll every second to update friends
     setInterval(async()=>{
       const {data,error} = await supabase.from('locations').select('*');
       if(error) console.error(error);
       if(data) data.forEach(d=>updateFriendMarker(d));
     },1000);
-
-    // Delete old locations (inactive users) every 30s
-    setInterval(async()=>{
-      const threshold = new Date(Date.now()-30000).toISOString();
-      await supabase.from('locations').delete().lt('updated_at',threshold);
-    },30000);
 
   });
 });
