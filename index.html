@@ -21,90 +21,83 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+document.addEventListener('DOMContentLoaded', ()=>{
 
-// --- Supabase config ---
-const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
-const supabase = createClient(supabaseUrl, supabaseKey);
+  const startButton = document.getElementById('startButton');
+  startButton.addEventListener('click', async ()=>{
 
-// --- Persistent user ID ---
-let userId = localStorage.getItem('friendtrack_userId');
-if(!userId){
-  userId = 'user-' + Math.floor(Math.random()*1000000);
-  localStorage.setItem('friendtrack_userId', userId);
-}
+    startButton.style.display = 'none';
+    const mapDiv = document.getElementById('map');
+    mapDiv.style.display = 'block';
 
-// --- Variables ---
-let map;
-let myMarker = null;
-let friendMarkers = {};
+    // --- Initialize Supabase after button click ---
+    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm');
+    const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-// --- Update or create marker ---
-function updateMyMarker(lat,lng){
-  if(!myMarker){
-    myMarker = L.circleMarker([lat,lng],{radius:8,color:'#3388ff',fillColor:'#3388ff',fillOpacity:1}).addTo(map);
-  } else myMarker.setLatLng([lat,lng]);
-  map.setView([lat,lng],16);
-}
+    // --- Persistent user ID ---
+    let userId = localStorage.getItem('friendtrack_userId');
+    if(!userId){
+      userId = 'user-' + Math.floor(Math.random()*1000000);
+      localStorage.setItem('friendtrack_userId', userId);
+    }
 
-function updateFriendMarker(data){
-  if(data.user_id === userId) return;
-  if(!friendMarkers[data.user_id]){
-    friendMarkers[data.user_id] = L.marker([data.lat,data.lng],{
-      icon:L.icon({iconUrl:'https://upload.wikimedia.org/wikipedia/commons/3/3e/Red_dot.svg',iconSize:[16,16]})
+    // --- Initialize map ---
+    const map = L.map('map').setView([0,0],2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19,
+      attribution:'&copy; OpenStreetMap contributors'
     }).addTo(map);
-  } else friendMarkers[data.user_id].setLatLng([data.lat,data.lng]);
-}
 
-// --- Write location to Supabase ---
-async function writeLocation(lat,lng){
-  await supabase.from('locations').upsert({
-    user_id: userId,
-    lat: lat,
-    lng: lng,
-    updated_at: new Date()
+    let myMarker = null;
+    let friendMarkers = {};
+
+    function updateMyMarker(lat,lng){
+      if(!myMarker){
+        myMarker = L.circleMarker([lat,lng],{radius:8,color:'#3388ff',fillColor:'#3388ff',fillOpacity:1}).addTo(map);
+      } else myMarker.setLatLng([lat,lng]);
+      map.setView([lat,lng],16);
+    }
+
+    function updateFriendMarker(data){
+      if(data.user_id === userId) return;
+      if(!friendMarkers[data.user_id]){
+        friendMarkers[data.user_id] = L.marker([data.lat,data.lng],{
+          icon:L.icon({iconUrl:'https://upload.wikimedia.org/wikipedia/commons/3/3e/Red_dot.svg',iconSize:[16,16]})
+        }).addTo(map);
+      } else friendMarkers[data.user_id].setLatLng([data.lat,data.lng]);
+    }
+
+    async function writeLocation(lat,lng){
+      await supabase.from('locations').upsert({
+        user_id: userId,
+        lat: lat,
+        lng: lng,
+        updated_at: new Date()
+      });
+    }
+
+    // --- Realtime updates ---
+    supabase.from('locations')
+      .on('INSERT', payload => updateFriendMarker(payload.new))
+      .on('UPDATE', payload => updateFriendMarker(payload.new))
+      .subscribe();
+
+    // --- Geolocation watch ---
+    if(navigator.geolocation){
+      navigator.geolocation.watchPosition(
+        pos=>{
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          updateMyMarker(lat,lng);
+          writeLocation(lat,lng);
+        },
+        err=>console.error('Geo error',err),
+        {enableHighAccuracy:true, maximumAge:5000, timeout:10000}
+      );
+    } else alert('Geolocation unsupported');
   });
-}
-
-// --- Supabase realtime subscription ---
-supabase.from('locations')
-  .on('INSERT', payload => updateFriendMarker(payload.new))
-  .on('UPDATE', payload => updateFriendMarker(payload.new))
-  .subscribe();
-
-// --- Start tracking after user clicks ---
-document.getElementById('startButton').addEventListener('click', async ()=>{
-  document.getElementById('startButton').style.display='none';
-  document.getElementById('map').style.display='block';
-
-  // --- Initialize map ---
-  map = L.map('map').setView([0,0],2);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    maxZoom:19,
-    attribution:'&copy; OpenStreetMap contributors'
-  }).addTo(map);
-
-  // --- Geolocation ---
-  if(navigator.geolocation){
-    navigator.geolocation.watchPosition(
-      pos=>{
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        updateMyMarker(lat,lng);
-        writeLocation(lat,lng);
-      },
-      err=>console.error('Geo error',err),
-      {enableHighAccuracy:true}
-    );
-  } else alert('Geolocation unsupported');
-
-  // --- Device orientation (heading) ---
-  if(window.DeviceOrientationEvent){
-    window.addEventListener('deviceorientation', e=>{
-      // Heading logic can be added here later
-    }, true);
-  }
 });
 </script>
 </body>
