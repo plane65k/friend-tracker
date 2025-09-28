@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Friend Tracker - Compass Mode</title>
+<title>Friend Tracker Compass - Cross-Platform</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
   html, body { height: 100%; margin: 0; font-family: 'Arial', sans-serif; background:#f5f5f5; }
@@ -41,7 +41,7 @@
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-document.addEventListener('DOMContentLoaded', async ()=>{
+document.addEventListener('DOMContentLoaded', async()=>{
 
 const startButton = document.getElementById('startButton');
 const arrowUI = document.getElementById('arrowUI');
@@ -50,11 +50,11 @@ const distanceEl = document.getElementById('distance');
 
 startButton.addEventListener('click', async()=>{
 
-  // Request DeviceOrientation permission for iOS
-  if(typeof DeviceOrientationEvent?.requestPermission === 'function'){
+  // Request compass permission for iOS
+  if(typeof DeviceOrientationEvent?.requestPermission==='function'){
     try{
       const resp = await DeviceOrientationEvent.requestPermission();
-      if(resp!=='granted'){ alert('Compass access denied'); return; }
+      if(resp!=='granted'){ alert('Compass permission denied'); return; }
     } catch(e){ console.error(e); return; }
   }
 
@@ -68,22 +68,21 @@ startButton.addEventListener('click', async()=>{
   // Supabase
   const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
   const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createClient(supabaseUrl,supabaseKey);
 
   let userId = localStorage.getItem('friendtrack_userId');
   if(!userId){ userId='user-'+Math.floor(Math.random()*1000000); localStorage.setItem('friendtrack_userId',userId); }
 
-  // Map setup
+  // Map
   const map = L.map('map').setView([0,0],2);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'&copy; OpenStreetMap contributors' }).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
 
-  let myMarker=null, compassLine=null, arrowMarker=null, selectedFriend=null, firstUpdate=true;
-  let myHeading=0, positions=[]; let friendMarkers={};
+  let myMarker=null, compassLine=null, firstUpdate=true, myHeading=0, positions=[], friendMarkers={}, selectedFriend=null;
 
   function deg2rad(d){ return d*Math.PI/180; }
   function rad2deg(r){ return r*180/Math.PI; }
   function haversine(lat1,lon1,lat2,lon2){
-    const R=6371000; const dLat=deg2rad(lat2-lat1); const dLon=deg2rad(lon2-lon1);
+    const R=6371000, dLat=deg2rad(lat2-lat1), dLon=deg2rad(lon2-lon1);
     const a=Math.sin(dLat/2)**2 + Math.cos(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.sin(dLon/2)**2;
     return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
   }
@@ -104,13 +103,13 @@ startButton.addEventListener('click', async()=>{
     const avgLat=positions.reduce((a,b)=>a+b[0],0)/positions.length;
     const avgLng=positions.reduce((a,b)=>a+b[1],0)/positions.length;
 
-    if(!myMarker) myMarker=L.circleMarker([avgLat,avgLng],{ radius:8, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:0.9, weight:2 }).addTo(map);
+    if(!myMarker) myMarker=L.circleMarker([avgLat,avgLng],{radius:8,color:'#1a73e8',fillColor:'#1a73e8',fillOpacity:0.9,weight:2}).addTo(map);
     else myMarker.setLatLng([avgLat,avgLng]);
 
     if(firstUpdate){ map.setView([avgLat,avgLng],16); firstUpdate=false; }
 
-    const [lat2,lng2] = getInfiniteLine(avgLat,avgLng,myHeading);
-    if(!compassLine) compassLine=L.polyline([[avgLat,avgLng],[lat2,lng2]],{color:'#1a73e8', weight:3}).addTo(map);
+    const [lat2,lng2]=getInfiniteLine(avgLat,avgLng,myHeading);
+    if(!compassLine) compassLine=L.polyline([[avgLat,avgLng],[lat2,lng2]],{color:'#1a73e8',weight:3}).addTo(map);
     else compassLine.setLatLngs([[avgLat,avgLng],[lat2,lng2]]);
 
     if(selectedFriend){
@@ -147,7 +146,8 @@ startButton.addEventListener('click', async()=>{
   }, err=>console.error(err), { enableHighAccuracy:true, maximumAge:0, timeout:30000 });
 
   window.addEventListener('deviceorientation',e=>{
-    let heading=e.alpha; if(typeof e.webkitCompassHeading!=='undefined') heading=e.webkitCompassHeading;
+    let heading=e.alpha;
+    if(typeof e.webkitCompassHeading!=='undefined') heading=e.webkitCompassHeading; 
     if(heading!=null){ myHeading=heading;
       if(myMarker){ const lat=myMarker.getLatLng().lat; const lng=myMarker.getLatLng().lng;
         const [lat2,lng2]=getInfiniteLine(lat,lng,myHeading);
