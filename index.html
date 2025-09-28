@@ -3,12 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Friend Tracker with Infinite Compass Line</title>
+<title>Friend Tracker with Compass Arrow</title>
 <style>
   html, body { height: 100%; margin: 0; }
   #map { height: 100%; width: 100%; display:none; }
-  #startButton { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); padding:15px 25px; font-size:18px; z-index:1000; border-radius:8px; background:#007bff; color:white; border:none; cursor:pointer; }
+  #startButton {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    padding:15px 25px; font-size:18px; z-index:1000; border-radius:8px;
+    background:#007bff; color:white; border:none; cursor:pointer;
+  }
   #startButton:hover { background:#0056b3; }
+  #arrowDistance {
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    z-index:1000; padding:5px 10px; background:rgba(255,255,255,0.9);
+    border-radius:6px; font-weight:bold;
+  }
 </style>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -17,6 +26,7 @@
 
 <button id="startButton">Start Tracking Location</button>
 <div id="map"></div>
+<div id="arrowDistance"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
@@ -26,6 +36,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 document.addEventListener('DOMContentLoaded', () => {
   const startButton = document.getElementById('startButton');
+  const arrowDistanceDiv = document.getElementById('arrowDistance');
 
   startButton.addEventListener('click', async () => {
 
@@ -57,13 +68,33 @@ document.addEventListener('DOMContentLoaded', () => {
     let myHeading=0;
     let friendMarkers={};
     let compassLine=null;
+    let arrowMarker=null;
+    let selectedFriend=null;
     let firstLocationUpdate=true;
     const positions=[];
 
-    // Extend compass line to "infinite" distance
+    function deg2rad(deg){ return deg*Math.PI/180; }
+    function rad2deg(rad){ return rad*180/Math.PI; }
+
+    function haversine(lat1, lon1, lat2, lon2){
+      const R = 6371000; // meters
+      const dLat = deg2rad(lat2-lat1);
+      const dLon = deg2rad(lon2-lon1);
+      const a = Math.sin(dLat/2)**2 + Math.cos(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.sin(dLon/2)**2;
+      const c = 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+      return R*c;
+    }
+
+    function bearing(lat1, lon1, lat2, lon2){
+      const y = Math.sin(deg2rad(lon2-lon1))*Math.cos(deg2rad(lat2));
+      const x = Math.cos(deg2rad(lat1))*Math.sin(deg2rad(lat2)) -
+                Math.sin(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.cos(deg2rad(lon2-lon1));
+      return (rad2deg(Math.atan2(y,x))+360)%360;
+    }
+
     function getInfiniteLine(lat,lng,heading){
       const rad=(360-heading)*Math.PI/180;
-      const hugeDistance=1000000; // huge number, effectively infinite
+      const hugeDistance=1000000;
       const lat2=lat+hugeDistance*Math.cos(rad);
       const lng2=lng+hugeDistance*Math.sin(rad);
       return [lat2,lng2];
@@ -77,11 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if(!myMarker){
         myMarker = L.circleMarker([avgLat,avgLng],{
-          radius:6,
-          color:'#1a73e8',
-          fillColor:'#1a73e8',
-          fillOpacity:0.9,
-          weight:2
+          radius:6, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:0.9, weight:2
         }).addTo(map);
       } else myMarker.setLatLng([avgLat,avgLng]);
 
@@ -90,6 +117,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const [lat2,lng2] = getInfiniteLine(avgLat,avgLng,myHeading);
       if(!compassLine) compassLine = L.polyline([[avgLat,avgLng],[lat2,lng2]],{color:'#1a73e8', weight:2}).addTo(map);
       else compassLine.setLatLngs([[avgLat,avgLng],[lat2,lng2]]);
+
+      // Update arrow if a friend is selected
+      if(selectedFriend){
+        const fLat = selectedFriend.lat;
+        const fLng = selectedFriend.lng;
+        const bear = bearing(avgLat, avgLng, fLat, fLng);
+        const [arrowLat2, arrowLng2] = getInfiniteLine(avgLat, avgLng, bear);
+        if(!arrowMarker){
+          arrowMarker = L.polyline([[avgLat,avgLng],[arrowLat2,arrowLng2]],{color:'orange', weight:4, dashArray:'10,10'}).addTo(map);
+        } else arrowMarker.setLatLngs([[avgLat,avgLng],[arrowLat2,arrowLng2]]);
+        const dist = haversine(avgLat,avgLng,fLat,fLng);
+        arrowDistanceDiv.textContent = `Distance: ${dist>1000?(dist/1000).toFixed(2)+' km':Math.round(dist)+' m'}`;
+      }
     }
 
     function updateFriendMarker(data){
@@ -97,13 +137,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const pos=[data.lat,data.lng];
       if(!friendMarkers[data.user_id]){
         friendMarkers[data.user_id] = L.circleMarker(pos,{
-          radius:6,
-          color:'#e81a1a',
-          fillColor:'#e81a1a',
-          fillOpacity:0.9,
-          weight:2
+          radius:6, color:'#e81a1a', fillColor:'#e81a1a', fillOpacity:0.9, weight:2
         }).addTo(map);
+        friendMarkers[data.user_id].on('click',()=>{ selectedFriend=data; });
       } else friendMarkers[data.user_id].setLatLng(pos);
+
+      // Update arrow if this is the selected friend
+      if(selectedFriend && selectedFriend.user_id===data.user_id) selectedFriend=data;
     }
 
     async function writeLocation(lat,lng,heading){
@@ -137,16 +177,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if(myMarker){
           const lat=myMarker.getLatLng().lat;
           const lng=myMarker.getLatLng().lng;
-          const [lat2,lng2] = getInfiniteLine(lat,lng,myHeading);
+          const [lat2,lng2]=getInfiniteLine(lat,lng,myHeading);
           if(compassLine) compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
         }
       }
     });
 
-    setInterval(async()=>{
-      const {data,error} = await supabase.from('locations').select('*');
+    setInterval(async ()=>{
+      const { data, error } = await supabase.from('locations').select('*');
       if(error) console.error(error);
       if(data) data.forEach(d=>updateFriendMarker(d));
+      // Auto delete old rows (>30 sec)
+      const cutoff = new Date(Date.now()-30000).toISOString();
+      await supabase.from('locations').delete().lt('updated_at', cutoff);
     },1000);
 
   });
