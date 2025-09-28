@@ -1,32 +1,142 @@
-let firstLocationUpdate = true; // NEW: track first update
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Friend Tracker</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  #map { height: 100%; width: 100%; display:none; }
+  #startButton { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); padding:15px 25px; font-size:18px; }
+</style>
 
-function updateMyMarker(lat,lng){
-  if(!myMarker){
-    myMarker = L.circleMarker([lat,lng],{
-      radius:10,
-      color:'#3388ff',
-      fillColor:'#3388ff',
-      fillOpacity:1
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body>
+
+<button id="startButton">Start Tracking Location</button>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Rotated Marker plugin for Leaflet -->
+<script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+document.addEventListener('DOMContentLoaded', () => {
+
+  const startButton = document.getElementById('startButton');
+  startButton.addEventListener('click', async () => {
+
+    startButton.style.display = 'none';
+    const mapDiv = document.getElementById('map');
+    mapDiv.style.display = 'block';
+
+    // --- Supabase v2 client ---
+    const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // --- Unique user ID per tab ---
+    let userId = localStorage.getItem('friendtrack_userId');
+    if (!userId) {
+      userId = 'user-' + Math.floor(Math.random() * 1000000);
+      localStorage.setItem('friendtrack_userId', userId);
+    }
+
+    // --- Initialize map ---
+    const map = L.map('map').setView([0,0],2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19,
+      attribution:'&copy; OpenStreetMap contributors'
     }).addTo(map);
-    myMarker.setRotationAngle(myHeading || 0);
-  } else {
-    myMarker.setLatLng([lat,lng]);
-    myMarker.setRotationAngle(myHeading || 0);
-  }
 
-  // Zoom in the first time only
-  if(firstLocationUpdate){
-    map.setView([lat,lng], 16); // zoom to user location
-    firstLocationUpdate = false;
-  }
-}
+    let myMarker = null;
+    let myHeading = 0;
+    let friendMarkers = {};
+    let firstLocationUpdate = true;
 
-// --- Geolocation watcher ---
-if (navigator.geolocation) {
-  navigator.geolocation.watchPosition(pos => {
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-    updateMyMarker(lat,lng);
-    writeLocation(lat,lng,myHeading);
-  }, err => console.error('Geo error', err), { enableHighAccuracy:true, maximumAge:5000, timeout:10000 });
-}
+    function updateMyMarker(lat,lng){
+      if(!myMarker){
+        myMarker = L.circleMarker([lat,lng],{
+          radius:10,
+          color:'#3388ff',
+          fillColor:'#3388ff',
+          fillOpacity:1
+        }).addTo(map);
+        myMarker.setRotationAngle(myHeading || 0);
+      } else {
+        myMarker.setLatLng([lat,lng]);
+        myMarker.setRotationAngle(myHeading || 0);
+      }
+
+      // Zoom to user on first location update
+      if(firstLocationUpdate){
+        map.setView([lat,lng],16);
+        firstLocationUpdate = false;
+      }
+    }
+
+    function updateFriendMarker(data){
+      if(data.user_id === userId) return; // skip self
+      if(!friendMarkers[data.user_id]){
+        friendMarkers[data.user_id] = L.circleMarker([data.lat,data.lng],{
+          radius:8,
+          color:'red',
+          fillColor:'red',
+          fillOpacity:1
+        }).addTo(map);
+      } else {
+        friendMarkers[data.user_id].setLatLng([data.lat,data.lng]);
+      }
+    }
+
+    async function writeLocation(lat,lng,heading){
+      await supabase.from('locations').upsert({
+        user_id: userId,
+        lat: lat,
+        lng: lng,
+        heading: heading,
+        updated_at: new Date()
+      });
+    }
+
+    // --- Realtime subscription ---
+    const channel = supabase.channel('locations_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'locations' }, payload => {
+        updateFriendMarker(payload.new);
+      })
+      .subscribe();
+
+    // --- Geolocation & heading ---
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        updateMyMarker(lat,lng);
+        writeLocation(lat,lng,myHeading);
+      }, err => console.error('Geo error', err), { enableHighAccuracy:true, maximumAge:5000, timeout:10000 });
+    } else alert('Geolocation not supported');
+
+    if (window.DeviceOrientationEvent) {
+      window.addEventListener('deviceorientationabsolute', e => {
+        if(e.absolute && e.alpha != null){
+          myHeading = 360 - e.alpha; // adjust to north
+          if(myMarker) myMarker.setRotationAngle(myHeading);
+        }
+      });
+    }
+
+    // --- Poll every 1 second to refresh all users ---
+    setInterval(async () => {
+      const { data, error } = await supabase.from('locations').select('*');
+      if(error) console.error(error);
+      if(data) data.forEach(d => updateFriendMarker(d));
+    },1000);
+
+  });
+});
+</script>
+</body>
+</html>
