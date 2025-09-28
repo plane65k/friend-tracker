@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   startButton.addEventListener('click', async () => {
 
-    // iOS orientation permission
     if(typeof DeviceOrientationEvent.requestPermission === 'function'){
       try{
         const response = await DeviceOrientationEvent.requestPermission();
@@ -41,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const mapDiv = document.getElementById('map');
     mapDiv.style.display = 'block';
 
-    // Supabase setup
     const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -58,12 +56,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let compassLine=null;
     let firstLocationUpdate=true;
 
-    const positions=[]; // for smoothing
+    const positions=[]; // smooth last 10 readings
 
     function updateMyMarker(lat,lng){
-      // smoothing last 5 positions
       positions.push([lat,lng]);
-      if(positions.length>5) positions.shift();
+      if(positions.length>10) positions.shift();
       const avgLat = positions.reduce((a,b)=>a+b[0],0)/positions.length;
       const avgLng = positions.reduce((a,b)=>a+b[1],0)/positions.length;
 
@@ -79,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if(firstLocationUpdate){ map.setView([avgLat,avgLng],16); firstLocationUpdate=false; }
 
-      // compass line
       const distance=0.001;
       const rad=(360-myHeading)*Math.PI/180;
       const lat2=avgLat+distance*Math.cos(rad);
@@ -106,29 +102,25 @@ document.addEventListener('DOMContentLoaded', () => {
       await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()});
     }
 
-    // Remove user on page close
     window.addEventListener('beforeunload', async ()=>{
       await supabase.from('locations').delete().eq('user_id', userId);
     });
 
-    // Realtime subscription
     const channel = supabase.channel('locations_channel')
       .on('postgres_changes',{event:'*',schema:'public',table:'locations'}, payload=>{
         updateFriendMarker(payload.new);
       })
       .subscribe();
 
-    // Geolocation watch with high accuracy
     if(navigator.geolocation){
       navigator.geolocation.watchPosition(pos=>{
         const lat=pos.coords.latitude;
         const lng=pos.coords.longitude;
         updateMyMarker(lat,lng);
         writeLocation(lat,lng,myHeading);
-      }, err=>console.error(err), { enableHighAccuracy:true, maximumAge:0, timeout:20000 });
+      }, err=>console.error(err), { enableHighAccuracy:true, maximumAge:0, timeout:30000 });
     } else alert('Geolocation not supported');
 
-    // Compass
     window.addEventListener('deviceorientation', e=>{
       let heading=e.alpha;
       if(typeof e.webkitCompassHeading!=='undefined') heading=e.webkitCompassHeading;
@@ -152,6 +144,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if(error) console.error(error);
       if(data) data.forEach(d=>updateFriendMarker(d));
     },1000);
+
+    // Auto-delete old rows every 30s
+    setInterval(async()=>{
+      const threshold = new Date(Date.now() - 30000).toISOString();
+      await supabase.from('locations').delete().lt('updated_at', threshold);
+    },30000);
 
   });
 });
