@@ -7,7 +7,8 @@
 <style>
   html, body { height: 100%; margin: 0; }
   #map { height: 100%; width: 100%; display:none; }
-  #startButton { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); padding:15px 25px; font-size:18px; z-index:1000; }
+  #startButton { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); padding:15px 25px; font-size:18px; z-index:1000; border-radius:8px; background:#007bff; color:white; border:none; cursor:pointer; }
+  #startButton:hover { background:#0056b3; }
 </style>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -53,43 +54,63 @@ document.addEventListener('DOMContentLoaded', () => {
     let myMarker = null;
     let myHeading = 0;
     let friendMarkers = {};
-    let friendLines = {};
-    let firstLocationUpdate = true;
     let compassLine = null;
+    let firstLocationUpdate = true;
 
+    // Update or create your own marker
     function updateMyMarker(lat,lng){
       if(!lat||!lng) return;
       if(!myMarker){
-        myMarker = L.circleMarker([lat,lng],{radius:10,color:'#3388ff',fillColor:'#3388ff',fillOpacity:1}).addTo(map);
+        myMarker = L.circleMarker([lat,lng],{
+          radius:6,
+          color:'#1a73e8',
+          fillColor:'#1a73e8',
+          fillOpacity:0.9,
+          weight:2
+        }).addTo(map);
       } else myMarker.setLatLng([lat,lng]);
 
       if(firstLocationUpdate){ map.setView([lat,lng],16); firstLocationUpdate=false; }
 
-      // compass line
+      // Update compass line
       const distance = 0.001;
       const rad = (360-myHeading)*Math.PI/180;
       const lat2 = lat+distance*Math.cos(rad);
       const lng2 = lng+distance*Math.sin(rad);
-      if(!compassLine){ compassLine=L.polyline([[lat,lng],[lat2,lng2]],{color:'blue'}).addTo(map); }
-      else compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
+      if(!compassLine){ 
+        compassLine = L.polyline([[lat,lng],[lat2,lng2]], {color:'#1a73e8', weight:2}).addTo(map);
+      } else compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
     }
 
+    // Update or create friend's marker
     function updateFriendMarker(data){
       if(data.user_id===userId) return;
       const pos=[data.lat,data.lng];
       if(!friendMarkers[data.user_id]){
-        friendMarkers[data.user_id]=L.circleMarker(pos,{radius:8,color:'red',fillColor:'red',fillOpacity:1}).addTo(map);
-        friendLines[data.user_id]=L.polyline([myMarker.getLatLng(),pos],{color:'green'}).addTo(map);
-      } else { friendMarkers[data.user_id].setLatLng(pos); if(myMarker) friendLines[data.user_id].setLatLngs([myMarker.getLatLng(),pos]); }
+        friendMarkers[data.user_id] = L.circleMarker(pos,{
+          radius:6,
+          color:'#e81a1a',
+          fillColor:'#e81a1a',
+          fillOpacity:0.9,
+          weight:2
+        }).addTo(map);
+      } else friendMarkers[data.user_id].setLatLng(pos);
     }
 
     async function writeLocation(lat,lng,heading){
       await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()});
     }
 
+    // Remove user from DB on page close
+    window.addEventListener('beforeunload', async ()=>{
+      await supabase.from('locations').delete().eq('user_id', userId);
+    });
+
     // Realtime subscription
     const channel = supabase.channel('locations_channel')
-      .on('postgres_changes',{event:'*',schema:'public',table:'locations'}, payload=>updateFriendMarker(payload.new))
+      .on('postgres_changes',{event:'*',schema:'public',table:'locations'}, payload=>{
+        updateFriendMarker(payload.new);
+      })
       .subscribe();
 
     // Geolocation
@@ -98,27 +119,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const lat=pos.coords.latitude,lng=pos.coords.longitude;
         updateMyMarker(lat,lng);
         writeLocation(lat,lng,myHeading);
-        Object.keys(friendMarkers).forEach(uid=>{ friendLines[uid].setLatLngs([myMarker.getLatLng(),friendMarkers[uid].getLatLng()]); });
       },err=>console.error(err),{enableHighAccuracy:true,maximumAge:5000,timeout:10000});
     } else alert('Geolocation not supported');
 
-    // Compass
+    // Compass heading
     window.addEventListener('deviceorientation', e=>{
-      let heading=e.alpha;
-      if(typeof e.webkitCompassHeading!=='undefined') heading=e.webkitCompassHeading;
-      if(heading!=null){ myHeading=heading; if(myMarker){
-        const lat=myMarker.getLatLng().lat,lng=myMarker.getLatLng().lng;
-        const distance=0.001;
-        const rad=(360-myHeading)*Math.PI/180;
-        const lat2=lat+distance*Math.cos(rad);
-        const lng2=lng+distance*Math.sin(rad);
-        if(compassLine) compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
-      }}
+      let heading = e.alpha;
+      if(typeof e.webkitCompassHeading !=='undefined') heading = e.webkitCompassHeading;
+      if(heading != null){ 
+        myHeading = heading; 
+        if(myMarker){
+          const lat=myMarker.getLatLng().lat,lng=myMarker.getLatLng().lng;
+          const distance=0.001;
+          const rad=(360-myHeading)*Math.PI/180;
+          const lat2=lat+distance*Math.cos(rad);
+          const lng2=lng+distance*Math.sin(rad);
+          if(compassLine) compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
+        }
+      }
     });
 
-    // Poll every second
+    // Poll every second to get other users
     setInterval(async()=>{
-      const {data,error}=await supabase.from('locations').select('*');
+      const {data,error} = await supabase.from('locations').select('*');
       if(error) console.error(error);
       if(data) data.forEach(d=>updateFriendMarker(d));
     },1000);
