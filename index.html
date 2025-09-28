@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Friend Tracker with Compass</title>
+<title>Friend Tracker with Infinite Compass Line</title>
 <style>
   html, body { height: 100%; margin: 0; }
   #map { height: 100%; width: 100%; display:none; }
@@ -60,26 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let firstLocationUpdate=true;
     const positions=[];
 
-    function getLineToMapEdge(lat,lng,heading){
-      const bounds = map.getBounds();
-      const rad = (360-heading) * Math.PI / 180;
-
-      // Define a large multiplier to guarantee intersection with map bounds
-      let distance = 1000; 
-      let lat2 = lat + distance * Math.cos(rad);
-      let lng2 = lng + distance * Math.sin(rad);
-
-      // Clip to map bounds
-      const north = bounds.getNorth();
-      const south = bounds.getSouth();
-      const east = bounds.getEast();
-      const west = bounds.getWest();
-
-      if(lat2 > north) lat2 = north;
-      if(lat2 < south) lat2 = south;
-      if(lng2 > east) lng2 = east;
-      if(lng2 < west) lng2 = west;
-
+    // Extend compass line to "infinite" distance
+    function getInfiniteLine(lat,lng,heading){
+      const rad=(360-heading)*Math.PI/180;
+      const hugeDistance=1000000; // huge number, effectively infinite
+      const lat2=lat+hugeDistance*Math.cos(rad);
+      const lng2=lng+hugeDistance*Math.sin(rad);
       return [lat2,lng2];
     }
 
@@ -101,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if(firstLocationUpdate){ map.setView([avgLat,avgLng],16); firstLocationUpdate=false; }
 
-      const [lat2,lng2] = getLineToMapEdge(avgLat,avgLng,myHeading);
+      const [lat2,lng2] = getInfiniteLine(avgLat,avgLng,myHeading);
       if(!compassLine) compassLine = L.polyline([[avgLat,avgLng],[lat2,lng2]],{color:'#1a73e8', weight:2}).addTo(map);
       else compassLine.setLatLngs([[avgLat,avgLng],[lat2,lng2]]);
     }
@@ -151,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(myMarker){
           const lat=myMarker.getLatLng().lat;
           const lng=myMarker.getLatLng().lng;
-          const [lat2,lng2] = getLineToMapEdge(lat,lng,myHeading);
+          const [lat2,lng2] = getInfiniteLine(lat,lng,myHeading);
           if(compassLine) compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
         }
       }
