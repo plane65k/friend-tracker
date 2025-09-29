@@ -1,157 +1,285 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Friend Tracker 360°</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<style>
-  body { margin:0; font-family:"Inter",sans-serif; background:#f0f2f5; color:#333; }
-  #map { height:80vh; width:100%; }
-  #arrow { font-size:48px; text-align:center; width:60px; height:60px; line-height:60px;
-    border-radius:50%; background:#fff; border:2px solid #4caf50; position:fixed; top:10px;
-    left:50%; transform:translateX(-50%); z-index:1000; transition: transform 0.2s ease; }
-  #distance { text-align:center; font-size:16px; margin-top:75px; font-weight:bold; }
-  #controls { display:flex; justify-content:space-around; align-items:center; padding:10px;
-    background:#fff; border-top:1px solid #ddd; }
-  #friendList { flex:1; padding:5px; overflow-x:auto; white-space:nowrap; }
-  .friend-btn { background:#4caf50; border:none; padding:8px 12px; border-radius:8px;
-    color:#fff; cursor:pointer; margin:4px; transition:0.2s; }
-  .friend-btn:hover { background:#45a049; }
-</style>
+  <meta charset="UTF-8" />
+  <title>Friend Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Inter", sans-serif;
+      background: #f0f2f5;
+      color: #333;
+    }
+    #map {
+      height: 80vh;
+      width: 100%;
+    }
+    #controls {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 10px;
+      background: #fff;
+      border-top: 1px solid #ddd;
+    }
+    #friendList {
+      flex: 1;
+      padding: 5px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .friend-btn {
+      background: #4caf50;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s ease;
+    }
+    .friend-btn:hover {
+      background: #45a049;
+    }
+    #arrow {
+      font-size: 48px;
+      text-align: center;
+      width: 70px;
+      height: 70px;
+      line-height: 70px;
+      border-radius: 50%;
+      background: #fff;
+      border: 3px solid #4caf50;
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    #distance {
+      text-align: center;
+      font-size: 16px;
+      margin-top: 85px;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
+  <div id="map"></div>
+  <div id="arrow">↑</div>
+  <div id="distance">Distance: -- m</div>
+  <div id="controls">
+    <div id="friendList"></div>
+  </div>
 
-<div id="map"></div>
-<div id="arrow">↑</div>
-<div id="distance">Distance: -- m</div>
-<div id="controls"><div id="friendList"></div></div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script>
+    const supabaseUrl = "https://ngyjswujmvkqmqlymrhu.supabase.co";
+    const supabaseKey =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w";
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    const userId = "user_" + Math.random().toString(36).substring(2, 9);
 
-const supabaseUrl = "https://ngyjswujmvkqmqlymrhu.supabase.co";
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w";
-const supabase = createClient(supabaseUrl, supabaseKey);
+    let map = L.map("map").setView([0, 0], 2);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors"
+    }).addTo(map);
 
-const userId = "user_" + Math.random().toString(36).substring(2,9);
+    let userMarker, headingLine;
+    let friends = {};
+    let currentHeading = 0;
+    let targetFriend = null;
+    let firstZoomDone = false;
 
-let map = L.map("map").setView([0,0],2);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{ attribution:"© OpenStreetMap contributors" }).addTo(map);
+    // Request location permission (always ask)
+    function startLocationTracking() {
+      if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(
+          async (pos) => {
+            const { latitude, longitude } = pos.coords;
+            if (!userMarker) {
+              userMarker = L.circleMarker([latitude, longitude], {
+                radius: 10,
+                color: "blue",
+                fillColor: "blue",
+                fillOpacity: 1
+              }).addTo(map);
+              if (!firstZoomDone) {
+                map.setView([latitude, longitude], 17);
+                firstZoomDone = true;
+              }
+            } else {
+              userMarker.setLatLng([latitude, longitude]);
+            }
 
-let userMarker=null, headingLine=null, friends={}, targetFriend=null, currentHeading=0;
+            // Update infinite heading line
+            if (headingLine) map.removeLayer(headingLine);
+            const dest = computeDestinationPoint(
+              { lat: latitude, lng: longitude },
+              currentHeading,
+              20000000
+            );
+            headingLine = L.polyline(
+              [[latitude, longitude], [dest.lat, dest.lng]],
+              { color: "blue", weight: 2 }
+            ).addTo(map);
 
-// --- REQUEST PERMISSIONS ---
-async function requestLocation(){
-  if(!navigator.geolocation){ alert("Geolocation not supported"); return; }
-  navigator.geolocation.watchPosition(async pos=>{
-    const { latitude, longitude } = pos.coords;
-
-    if(!userMarker){
-      userMarker = L.circleMarker([latitude,longitude],{radius:10,color:"blue",fillColor:"blue",fillOpacity:1}).addTo(map);
-      map.setView([latitude,longitude],17);
-    } else userMarker.setLatLng([latitude,longitude]);
-
-    // Heading line (phone direction)
-    if(headingLine) map.removeLayer(headingLine);
-    const dest = computeDestinationPoint({lat:latitude,lng:longitude},currentHeading,20000000);
-    headingLine = L.polyline([[latitude,longitude],[dest.lat,dest.lng]], {color:"blue",weight:2}).addTo(map);
-
-    // Update supabase
-    await supabase.from("locations").upsert({
-      id:userId,
-      lat:latitude,
-      lng:longitude,
-      updated_at:new Date().toISOString()
-    });
-  },err=>console.error(err),{enableHighAccuracy:true, maximumAge:500, timeout:10000});
-}
-
-async function requestCompass(){
-  if(window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission==="function"){
-    const resp = await DeviceOrientationEvent.requestPermission().catch(console.error);
-    if(resp==="granted") window.addEventListener("deviceorientation",handleOrientation);
-  } else window.addEventListener("deviceorientationabsolute",handleOrientation);
-}
-
-function handleOrientation(event){
-  let heading;
-  if(event.webkitCompassHeading!==undefined) heading = event.webkitCompassHeading;
-  else heading = 360 - event.alpha;
-  currentHeading = heading;
-}
-
-// --- FRIEND MANAGEMENT ---
-async function loadFriends(){
-  const { data } = await supabase.from("locations").select("*");
-  renderFriends(data);
-}
-
-function renderFriends(rows){
-  const friendListDiv = document.getElementById("friendList");
-  friendListDiv.innerHTML="";
-  rows.forEach(row=>{
-    if(row.id===userId) return;
-    if(!friends[row.id]){
-      friends[row.id] = {
-        marker: L.circleMarker([row.lat,row.lng],{radius:10,color:"red",fillColor:"red",fillOpacity:1}).addTo(map),
-        lat: row.lat, lng: row.lng
-      };
-    } else { friends[row.id].lat=row.lat; friends[row.id].lng=row.lng;
-      friends[row.id].marker.setLatLng([row.lat,row.lng]);
+            // Save to DB
+            await supabase.from("locations").upsert({
+              id: userId,
+              lat: latitude,
+              lng: longitude,
+              updated_at: new Date().toISOString()
+            });
+          },
+          (err) => console.error(err),
+          { enableHighAccuracy: true, maximumAge: 1000 }
+        );
+      } else {
+        alert("Geolocation not supported");
+      }
     }
-    const btn = document.createElement("button");
-    btn.className="friend-btn"; btn.innerText=row.id;
-    btn.onclick = ()=> targetFriend=row;
-    friendListDiv.appendChild(btn);
-  });
-}
 
-// --- ARROW TO FRIEND ---
-setInterval(()=>{
-  if(targetFriend && userMarker){
-    const userLatLng = userMarker.getLatLng();
-    const bearing = bearingTo([userLatLng.lat,userLatLng.lng],[targetFriend.lat,targetFriend.lng]);
-    const diff = (bearing-currentHeading+360)%360;
-    document.getElementById("arrow").style.transform=`translateX(-50%) rotate(${diff}deg)`;
-    const dist = haversineDistance([userLatLng.lat,userLatLng.lng],[targetFriend.lat,targetFriend.lng]);
-    document.getElementById("distance").innerText="Distance: "+Math.round(dist)+" m";
-  }
-},100);
+    // Ask for compass heading
+    function startCompassTracking() {
+      function handleOrientation(event) {
+        let heading;
+        if (event.webkitCompassHeading !== undefined) {
+          heading = event.webkitCompassHeading; // iOS
+        } else {
+          heading = 360 - event.alpha; // Android
+        }
+        currentHeading = heading;
+      }
 
-// --- AUTO DELETE OLD USERS EVERY 30 SEC ---
-setInterval(async()=>{
-  const threshold = new Date(Date.now()-30_000).toISOString();
-  const { error } = await supabase.from("locations").delete().lt("updated_at",threshold);
-  if(error) console.error(error);
-},30000);
+      if (window.DeviceOrientationEvent) {
+        if (typeof DeviceOrientationEvent.requestPermission === "function") {
+          DeviceOrientationEvent.requestPermission()
+            .then((resp) => {
+              if (resp === "granted") {
+                window.addEventListener("deviceorientation", handleOrientation);
+              } else {
+                alert("Compass permission denied");
+              }
+            })
+            .catch(console.error);
+        } else {
+          window.addEventListener("deviceorientationabsolute", handleOrientation);
+        }
+      }
+    }
 
-// --- UTILITIES ---
-function haversineDistance(c1,c2){
-  const R=6371e3, φ1=c1[0]*Math.PI/180, φ2=c2[0]*Math.PI/180;
-  const Δφ=(c2[0]-c1[0])*Math.PI/180, Δλ=(c2[1]-c1[1])*Math.PI/180;
-  const a=Math.sin(Δφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
-  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-}
-function bearingTo(from,to){
-  const φ1=from[0]*Math.PI/180, φ2=to[0]*Math.PI/180, λ1=from[1]*Math.PI/180, λ2=to[1]*Math.PI/180;
-  const y=Math.sin(λ2-λ1)*Math.cos(φ2), x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);
-  return (Math.atan2(y,x)*180/Math.PI+360)%360;
-}
-function computeDestinationPoint(start,brng,dist){
-  const R=6371e3, δ=dist/R, θ=brng*Math.PI/180, φ1=start.lat*Math.PI/180, λ1=start.lng*Math.PI/180;
-  const φ2=Math.asin(Math.sin(φ1)*Math.cos(δ)+Math.cos(φ1)*Math.sin(δ)*Math.cos(θ));
-  const λ2=λ1+Math.atan2(Math.sin(θ)*Math.sin(δ)*Math.cos(φ1),Math.cos(δ)-Math.sin(φ1)*Math.sin(φ2));
-  return {lat:φ2*180/Math.PI,lng:λ2*180/Math.PI};
-}
+    // Load friends
+    async function loadFriends() {
+      const { data } = await supabase.from("locations").select("*");
+      renderFriends(data);
+    }
 
-// --- INIT ---
-requestLocation();
-requestCompass();
-loadFriends();
-setInterval(loadFriends,2000);
+    function renderFriends(rows) {
+      document.getElementById("friendList").innerHTML = "";
+      rows.forEach((row) => {
+        if (row.id === userId) return;
+        if (!friends[row.id]) {
+          friends[row.id] = L.circleMarker([row.lat, row.lng], {
+            radius: 10,
+            color: "red",
+            fillColor: "red",
+            fillOpacity: 1
+          }).addTo(map);
+        } else {
+          friends[row.id].setLatLng([row.lat, row.lng]);
+        }
+        const btn = document.createElement("button");
+        btn.className = "friend-btn";
+        btn.innerText = row.id;
+        btn.onclick = () => (targetFriend = row);
+        document.getElementById("friendList").appendChild(btn);
+      });
+    }
 
-</script>
+    // Guide arrow update
+    setInterval(() => {
+      if (targetFriend && userMarker) {
+        const userLatLng = userMarker.getLatLng();
+        const bearing = bearingTo(
+          [userLatLng.lat, userLatLng.lng],
+          [targetFriend.lat, targetFriend.lng]
+        );
+        const diff = (bearing - currentHeading + 360) % 360;
+
+        const arrow = document.getElementById("arrow");
+        arrow.style.transform = `translateX(-50%) rotate(${diff}deg)`;
+        const dist = haversineDistance(
+          [userLatLng.lat, userLatLng.lng],
+          [targetFriend.lat, targetFriend.lng]
+        );
+        document.getElementById("distance").innerText =
+          "Distance: " + Math.round(dist) + " m";
+      }
+    }, 1000);
+
+    // Refresh friends
+    setInterval(loadFriends, 5000);
+
+    // Helpers
+    function computeDestinationPoint(start, brng, dist) {
+      const R = 6371e3;
+      const δ = dist / R;
+      const θ = (brng * Math.PI) / 180;
+      const φ1 = (start.lat * Math.PI) / 180;
+      const λ1 = (start.lng * Math.PI) / 180;
+
+      const φ2 = Math.asin(
+        Math.sin(φ1) * Math.cos(δ) +
+          Math.cos(φ1) * Math.sin(δ) * Math.cos(θ)
+      );
+      const λ2 =
+        λ1 +
+        Math.atan2(
+          Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+          Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2)
+        );
+      return { lat: (φ2 * 180) / Math.PI, lng: (λ2 * 180) / Math.PI };
+    }
+
+    function bearingTo(from, to) {
+      const φ1 = (from[0] * Math.PI) / 180;
+      const φ2 = (to[0] * Math.PI) / 180;
+      const λ1 = (from[1] * Math.PI) / 180;
+      const λ2 = (to[1] * Math.PI) / 180;
+      const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
+      const x =
+        Math.cos(φ1) * Math.sin(φ2) -
+        Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
+      return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+    }
+
+    function haversineDistance(coords1, coords2) {
+      const R = 6371e3;
+      const φ1 = (coords1[0] * Math.PI) / 180;
+      const φ2 = (coords2[0] * Math.PI) / 180;
+      const Δφ = ((coords2[0] - coords1[0]) * Math.PI) / 180;
+      const Δλ = ((coords2[1] - coords1[1]) * Math.PI) / 180;
+      const a =
+        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) *
+          Math.cos(φ2) *
+          Math.sin(Δλ / 2) *
+          Math.sin(Δλ / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // Ask immediately when page loads
+    window.onload = () => {
+      startLocationTracking();
+      startCompassTracking();
+    };
+  </script>
 </body>
 </html>
