@@ -51,6 +51,23 @@ html, body {
   font-size: 14px;
   color: #666;
 }
+.permission-btn {
+  padding: 10px 16px;
+  font-size: 14px;
+  border-radius: 6px;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  cursor: pointer;
+  margin-right: 8px;
+}
+.permission-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+.permission-btn.granted {
+  background: #4CAF50;
+}
 #startButton {
   padding: 15px 30px;
   font-size: 16px;
@@ -62,9 +79,15 @@ html, body {
   width: 100%;
   margin-top: 10px;
 }
-#startButton:disabled {
-  background: #ccc;
-  cursor: not-allowed;
+#skipButton {
+  padding: 10px 20px;
+  font-size: 14px;
+  border-radius: 6px;
+  background: transparent;
+  color: #666;
+  border: 1px solid #ddd;
+  cursor: pointer;
+  margin-top: 10px;
 }
 #arrowUI {
   position: absolute;
@@ -139,27 +162,36 @@ html, body {
   font-size: 14px;
   display: none;
 }
+#compassWarning {
+  color: #ff9800;
+  font-size: 12px;
+  margin-top: 5px;
+  display: none;
+}
 </style>
 </head>
 <body>
 
 <div id="permissionUI">
   <h2>Friend Tracker</h2>
-  <p>To use this app, we need the following permissions:</p>
+  <p>Enable permissions for the best experience:</p>
   
   <div class="permission-step">
     <h3>📍 Location Access</h3>
     <p>Required to track your position and show friends on the map</p>
-    <button id="locationPermissionBtn" onclick="requestLocationPermission()">Grant Location Access</button>
+    <button id="locationPermissionBtn" class="permission-btn" onclick="requestLocationPermission()">Grant Location Access</button>
+    <span id="locationStatus"></span>
   </div>
   
   <div class="permission-step">
     <h3>🧭 Motion & Compass Access</h3>
     <p>Required to show direction to friends and your orientation</p>
-    <button id="compassPermissionBtn" onclick="requestCompassPermission()">Grant Compass Access</button>
+    <button id="compassPermissionBtn" class="permission-btn" onclick="requestCompassPermission()">Grant Compass Access</button>
+    <div id="compassWarning">Compass access denied. Direction features limited.</div>
   </div>
   
-  <button id="startButton" disabled>Start Tracking</button>
+  <button id="startButton" onclick="startTrackingApp()">Start Tracking Friends</button>
+  <button id="skipButton" onclick="skipPermissions()">Skip Permissions</button>
 </div>
 
 <div id="map"></div>
@@ -187,32 +219,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
   supabase = createClient(supabaseUrl, supabaseKey);
   
-  // Check if permissions are already granted
-  checkExistingPermissions();
+  // Auto-request compass permission on iOS
+  if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
+    setTimeout(() => {
+      requestCompassPermission();
+    }, 500);
+  }
 });
-
-function checkExistingPermissions() {
-  // Check if geolocation is available
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      () => {
-        locationPermissionGranted = true;
-        document.getElementById('locationPermissionBtn').textContent = '✓ Location Access Granted';
-        document.getElementById('locationPermissionBtn').style.background = '#4CAF50';
-        updateStartButton();
-      },
-      () => {
-        // Location permission not granted
-      }
-    );
-  }
-  
-  // Check device orientation (compass) - this is trickier to detect without actually requesting
-  if (window.DeviceOrientationEvent) {
-    // We can't reliably check if permission is granted without requesting it
-    // So we'll rely on the user clicking the button
-  }
-}
 
 function requestLocationPermission() {
   if (!navigator.geolocation) {
@@ -225,16 +238,18 @@ function requestLocationPermission() {
   navigator.geolocation.getCurrentPosition(
     (position) => {
       locationPermissionGranted = true;
-      document.getElementById('locationPermissionBtn').textContent = '✓ Location Access Granted';
-      document.getElementById('locationPermissionBtn').style.background = '#4CAF50';
+      const btn = document.getElementById('locationPermissionBtn');
+      btn.textContent = '✓ Location Access Granted';
+      btn.classList.add('granted');
+      document.getElementById('locationStatus').textContent = '';
       showStatus('Location access granted!', 'success');
-      updateStartButton();
     },
     (error) => {
       let errorMessage = 'Location permission denied';
       switch(error.code) {
         case error.PERMISSION_DENIED:
-          errorMessage = 'Location permission denied. Please enable it in your browser settings.';
+          errorMessage = 'Location permission denied. Map will show friends but not your location.';
+          document.getElementById('locationStatus').textContent = 'Permission denied';
           break;
         case error.POSITION_UNAVAILABLE:
           errorMessage = 'Location information is unavailable.';
@@ -258,6 +273,7 @@ async function requestCompassPermission() {
   // Check if DeviceOrientationEvent is supported
   if (!window.DeviceOrientationEvent) {
     showStatus('Device orientation is not supported by this device', 'error');
+    document.getElementById('compassWarning').style.display = 'block';
     return;
   }
   
@@ -267,32 +283,37 @@ async function requestCompassPermission() {
       const permissionState = await DeviceOrientationEvent.requestPermission();
       if (permissionState === 'granted') {
         compassPermissionGranted = true;
-        document.getElementById('compassPermissionBtn').textContent = '✓ Compass Access Granted';
-        document.getElementById('compassPermissionBtn').style.background = '#4CAF50';
+        const btn = document.getElementById('compassPermissionBtn');
+        btn.textContent = '✓ Compass Access Granted';
+        btn.classList.add('granted');
+        document.getElementById('compassWarning').style.display = 'none';
         showStatus('Compass access granted!', 'success');
-        updateStartButton();
+        // Start listening to device orientation
+        window.addEventListener('deviceorientation', handleDeviceOrientation);
       } else {
-        showStatus('Compass permission denied', 'error');
+        showStatus('Compass permission denied. Direction features limited.', 'warning');
+        document.getElementById('compassWarning').style.display = 'block';
       }
     } catch (error) {
       showStatus('Error requesting compass permission: ' + error.message, 'error');
+      document.getElementById('compassWarning').style.display = 'block';
     }
   } else {
     // For Android and other browsers that don't require explicit permission
     compassPermissionGranted = true;
-    document.getElementById('compassPermissionBtn').textContent = '✓ Compass Access Granted';
-    document.getElementById('compassPermissionBtn').style.background = '#4CAF50';
+    const btn = document.getElementById('compassPermissionBtn');
+    btn.textContent = '✓ Compass Access Granted';
+    btn.classList.add('granted');
+    document.getElementById('compassWarning').style.display = 'none';
     showStatus('Compass access granted!', 'success');
-    updateStartButton();
+    // Start listening to device orientation
+    window.addEventListener('deviceorientation', handleDeviceOrientation);
   }
 }
 
-function updateStartButton() {
-  const startButton = document.getElementById('startButton');
-  if (locationPermissionGranted && compassPermissionGranted) {
-    startButton.disabled = false;
-    startButton.textContent = 'Start Tracking Friends';
-  }
+function handleDeviceOrientation(e) {
+  // This will be implemented in the main tracking function
+  console.log('Device orientation:', e);
 }
 
 function showStatus(message, type = 'info') {
@@ -305,6 +326,8 @@ function showStatus(message, type = 'info') {
     statusEl.style.background = 'rgba(211, 47, 47, 0.9)';
   } else if (type === 'success') {
     statusEl.style.background = 'rgba(56, 142, 60, 0.9)';
+  } else if (type === 'warning') {
+    statusEl.style.background = 'rgba(245, 124, 0, 0.9)';
   } else {
     statusEl.style.background = 'rgba(0, 0, 0, 0.8)';
   }
@@ -317,15 +340,10 @@ function showStatus(message, type = 'info') {
   }
 }
 
-// Start the main application
-document.getElementById('startButton').addEventListener('click', () => {
-  if (!locationPermissionGranted || !compassPermissionGranted) {
-    showStatus('Please grant all permissions first', 'error');
-    return;
-  }
-  
+function skipPermissions() {
+  showStatus('Starting with limited features...', 'warning');
   startTrackingApp();
-});
+}
 
 function startTrackingApp() {
   document.getElementById('permissionUI').style.display = 'none';
@@ -389,7 +407,7 @@ function startTrackingApp() {
       showStatus('Location tracking started!', 'success');
     }
 
-    // Update direction line (infinite)
+    // Update direction line (infinite) - always show even without compass
     const distance = 1000000; // huge distance for "infinite" line
     const rad = deg2rad(myHeading);
     const lat2 = lat + (distance/111111) * Math.cos(rad); // approx conversion meters->degrees
@@ -515,48 +533,58 @@ function startTrackingApp() {
     })
     .subscribe();
 
-  // GPS tracking
-  navigator.geolocation.watchPosition(
-    pos => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      updateMyMarker(lat, lng);
-      writeLocation(lat, lng, myHeading);
-    }, 
-    err => {
-      console.error('Geolocation error:', err);
-      showStatus('Error getting location: ' + err.message, 'error');
-    }, 
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
-  );
+  // GPS tracking - only if permission granted
+  if (locationPermissionGranted) {
+    navigator.geolocation.watchPosition(
+      pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        updateMyMarker(lat, lng);
+        writeLocation(lat, lng, myHeading);
+      }, 
+      err => {
+        console.error('Geolocation error:', err);
+        showStatus('Error getting location: ' + err.message, 'error');
+      }, 
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+    );
+  } else {
+    showStatus('Location access not granted. Showing friends only.', 'warning');
+  }
 
-  // Compass tracking
-  window.addEventListener('deviceorientation', e => {
-    let heading;
-    if(typeof e.webkitCompassHeading !== 'undefined'){ // iOS
-      heading = e.webkitCompassHeading;
-    } else if(e.alpha != null){ // Android
-      heading = 360 - e.alpha; // convert to compass bearing
-    }
-    
-    if(heading != null){
-      myHeading = heading;
-      if(myMarker){
-        const lat = myMarker.getLatLng().lat;
-        const lng = myMarker.getLatLng().lng;
-        const distance = 1000000;
-        const rad = deg2rad(myHeading);
-        const lat2 = lat + (distance/111111) * Math.cos(rad);
-        const lng2 = lng + (distance/111111) * Math.sin(rad);
-        compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
-        
-        // Update arrow direction if a friend is selected
-        if(selectedFriend){
-          updateArrowDirection(lat, lng);
+  // Compass tracking - only if permission granted
+  if (compassPermissionGranted) {
+    window.addEventListener('deviceorientation', e => {
+      let heading;
+      if(typeof e.webkitCompassHeading !== 'undefined'){ // iOS
+        heading = e.webkitCompassHeading;
+      } else if(e.alpha != null){ // Android
+        heading = 360 - e.alpha; // convert to compass bearing
+      }
+      
+      if(heading != null){
+        myHeading = heading;
+        if(myMarker){
+          const lat = myMarker.getLatLng().lat;
+          const lng = myMarker.getLatLng().lng;
+          const distance = 1000000;
+          const rad = deg2rad(myHeading);
+          const lat2 = lat + (distance/111111) * Math.cos(rad);
+          const lng2 = lng + (distance/111111) * Math.sin(rad);
+          compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
+          
+          // Update arrow direction if a friend is selected
+          if(selectedFriend){
+            updateArrowDirection(lat, lng);
+          }
         }
       }
-    }
-  });
+    });
+  } else {
+    showStatus('Compass access not granted. Using default direction.', 'warning');
+    // Set a default direction (North)
+    myHeading = 0;
+  }
 
   // Poll for updates and cleanup old entries
   setInterval(async() => {
