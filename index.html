@@ -9,7 +9,7 @@
 html, body { 
   height: 100%; 
   margin: 0; 
-  font-family: Arial, sans-serif; 
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; 
   background:#f5f5f5; 
   overflow: hidden;
 }
@@ -32,6 +32,11 @@ html, body {
   border:none; 
   cursor:pointer;
   box-shadow:0 4px 12px rgba(0,0,0,0.25);
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+#startButton:hover {
+  transform: translate(-50%, -50%) scale(1.05);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
 }
 #arrowUI {
   position:absolute; 
@@ -47,6 +52,7 @@ html, body {
   font-size:16px;
   box-shadow:0 4px 12px rgba(0,0,0,0.2);
   display:none;
+  transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 #arrowImage {
   width:60px; 
@@ -54,10 +60,11 @@ html, body {
   display:block; 
   margin:0 auto 5px;
   transform-origin: 50% 50%; 
-  transition: transform 0.1s linear;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 #distance { 
   font-size:18px; 
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 #friendsList {
   position:absolute; 
@@ -72,20 +79,24 @@ html, body {
   box-shadow:0 4px 12px rgba(0,0,0,0.2); 
   display:none;
   min-width:200px;
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 .friend-item {
   padding:8px 12px; 
   margin:5px 0; 
   border-radius:6px;
   cursor:pointer; 
-  transition:background 0.2s;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform-origin: center;
 }
 .friend-item:hover { 
   background:#f0f0f0; 
+  transform: scale(1.02);
 }
 .friend-item.selected {
   background:#1a73e8; 
   color:white;
+  transform: scale(1.02);
 }
 #friendsHeader {
   font-weight:bold; 
@@ -111,6 +122,7 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   padding: 0 20px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  animation: hudSlideIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
 #hudLeft {
@@ -136,6 +148,8 @@ html, body {
 #radarSweep {
   width: 60px;
   height: 60px;
+  transform-origin: center;
+  animation: radarFloat 4s ease-in-out infinite;
 }
 
 #sweepPath {
@@ -143,6 +157,7 @@ html, body {
   stroke: rgba(128, 128, 128, 0.7);
   stroke-width: 2;
   stroke-dasharray: 5, 5;
+  transform-origin: center;
 }
 
 #directionArrow {
@@ -153,7 +168,7 @@ html, body {
   stroke-width: 2;
   opacity: 0.2;
   transform-origin: center;
-  transition: transform 0.3s ease-out;
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
 }
 
@@ -162,14 +177,16 @@ html, body {
   font-weight: 800;
   font-stretch: condensed;
   text-align: center;
-  transition: all 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   margin-bottom: 5px;
+  transform-origin: center;
 }
 
 #distanceUnit {
   font-size: 14px;
   font-weight: 600;
   opacity: 0.8;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 #directionText {
@@ -177,6 +194,8 @@ html, body {
   font-weight: 400;
   text-align: center;
   min-height: 20px;
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform-origin: center;
 }
 
 #closeHUD {
@@ -191,62 +210,185 @@ html, body {
   display: flex;
   justify-content: center;
   align-items: center;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform-origin: center;
+}
+
+#closeHUD:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
 }
 
 #friendInfo {
   font-size: 14px;
   opacity: 0.8;
   text-align: right;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Animations */
+/* Super Smooth Apple-like Animations */
+@keyframes hudSlideIn {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes radarFloat {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-2px) rotate(1deg);
+  }
+}
+
 @keyframes sweep {
   0% {
     stroke-dashoffset: 0;
     opacity: 0.7;
+    transform: rotate(0deg);
+  }
+  50% {
+    opacity: 1;
   }
   100% {
     stroke-dashoffset: -100;
-    opacity: 1;
+    opacity: 0.7;
+    transform: rotate(360deg);
   }
 }
 
 @keyframes arrowBob {
   0%, 100% {
-    transform: scale(1);
+    transform: scale(1) translateY(0);
+  }
+  25% {
+    transform: scale(1.02) translateY(-1px);
   }
   50% {
-    transform: scale(1.02);
+    transform: scale(1.01) translateY(0);
+  }
+  75% {
+    transform: scale(1.02) translateY(-1px);
+  }
+}
+
+@keyframes arrowAlign {
+  0% {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.8));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 20px rgba(255, 255, 255, 1));
   }
 }
 
 @keyframes distancePulse {
-  0%, 100% {
+  0% {
     transform: scale(1);
+    opacity: 1;
   }
   50% {
-    transform: scale(1.1);
+    transform: scale(1.15);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 
 @keyframes textSlide {
   0% {
     opacity: 0;
-    transform: translateX(10px);
+    transform: translateY(10px) scale(0.95);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.02);
   }
   100% {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes gentleGlow {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  50% {
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+  }
+}
+
+@keyframes markerPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
   }
 }
 
 .arrow-aligned {
   opacity: 1 !important;
-  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.8)) !important;
+  animation: arrowAlign 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
 }
 
 .arrow-misaligned {
-  animation: arrowBob 0.5s infinite;
+  animation: arrowBob 2s ease-in-out infinite !important;
+}
+
+.distance-updating {
+  animation: distancePulse 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+.text-entering {
+  animation: textSlide 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+}
+
+.hud-visible {
+  animation: gentleGlow 3s ease-in-out infinite !important;
+}
+
+.marker-updating {
+  animation: markerPulse 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+/* Smooth transitions for map elements */
+.leaflet-marker-icon {
+  transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+.leaflet-popup {
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+
+/* Enhanced scrollbar for friends list */
+#friendsList::-webkit-scrollbar {
+  width: 6px;
+}
+
+#friendsList::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.1);
+  border-radius: 3px;
+}
+
+#friendsList::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 3px;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+#friendsList::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.3);
 }
 </style>
 </head>
@@ -310,14 +452,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   const friendName = document.getElementById('friendName');
   const friendDistance = document.getElementById('friendDistance');
 
-  // Start radar sweep animation
-  sweepPath.style.animation = 'sweep 2s ease-in-out infinite';
+  // Start enhanced radar sweep animation
+  sweepPath.style.animation = 'sweep 3s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite';
 
   closeHUD.addEventListener('click', () => {
-    navigationHUD.style.display = 'none';
+    navigationHUD.style.animation = 'hudSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse forwards';
+    setTimeout(() => {
+      navigationHUD.style.display = 'none';
+    }, 400);
   });
 
   startButton.addEventListener('click', async () => {
+    // Smooth button press animation
+    startButton.style.transform = 'translate(-50%, -50%) scale(0.95)';
+    setTimeout(() => {
+      startButton.style.transform = 'translate(-50%, -50%) scale(1)';
+    }, 150);
+
     // Ask iOS for motion/compass permission
     if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
       try {
@@ -351,10 +502,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   function startTracking() {
-    startButton.style.display = 'none';
-    document.getElementById('map').style.display = 'block';
-    arrowUI.style.display = 'block';
-    friendsList.style.display = 'block';
+    // Smooth transitions for UI elements
+    startButton.style.opacity = '0';
+    setTimeout(() => {
+      startButton.style.display = 'none';
+      document.getElementById('map').style.display = 'block';
+      arrowUI.style.display = 'block';
+      friendsList.style.display = 'block';
+      
+      // Animate elements in
+      arrowUI.style.opacity = '0';
+      arrowUI.style.transform = 'translateX(-50%) translateY(-20px)';
+      friendsList.style.opacity = '0';
+      friendsList.style.transform = 'translateX(20px)';
+      
+      setTimeout(() => {
+        arrowUI.style.opacity = '1';
+        arrowUI.style.transform = 'translateX(-50%) translateY(0)';
+        friendsList.style.opacity = '1';
+        friendsList.style.transform = 'translateX(0)';
+      }, 50);
+    }, 300);
 
     // Supabase setup with your provided credentials
     const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
@@ -408,14 +576,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         myMarker.bindPopup("You").openPopup();
       } else {
         myMarker.setLatLng([lat,lng]);
+        // Add smooth marker animation
+        myMarker.getElement().classList.add('marker-updating');
+        setTimeout(() => {
+          myMarker.getElement().classList.remove('marker-updating');
+        }, 800);
       }
 
-      if(firstUpdate){ map.setView([lat,lng], 16); firstUpdate=false; }
+      if(firstUpdate){ 
+        map.setView([lat,lng], 16); 
+        firstUpdate=false; 
+      }
 
       // Update direction line (infinite)
-      const distance = 1000000; // huge distance for "infinite" line
+      const distance = 1000000;
       const rad = deg2rad(myHeading);
-      const lat2 = lat + (distance/111111) * Math.cos(rad); // approx conversion meters->degrees
+      const lat2 = lat + (distance/111111) * Math.cos(rad);
       const lng2 = lng + (distance/111111) * Math.sin(rad);
 
       if(!compassLine){
@@ -435,7 +611,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateRouteToFriend(myLat, myLng) {
       if (!selectedFriend) return;
       
-      // Create or update the route line
       const routeCoordinates = [
         [myLat, myLng],
         [selectedFriend.lat, selectedFriend.lng]
@@ -469,27 +644,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       const targetBearing = bearing(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
       const diff = (targetBearing - myHeading + 360) % 360;
       
-      // Rotate the arrow
+      // Smooth arrow rotation
       directionArrow.style.transform = `rotate(${diff}deg)`;
       
-      // Update distance
+      // Update distance with smooth animation
       const dist = haversine(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
-      const distFeet = Math.round(dist * 3.28084); // Convert meters to feet
+      const distFeet = Math.round(dist * 3.28084);
       
-      // Pulse animation on distance update
-      distanceValue.style.animation = 'none';
-      setTimeout(() => {
-        distanceValue.style.animation = 'distancePulse 0.3s ease';
-      }, 10);
+      if (distanceValue.textContent !== distFeet.toString()) {
+        distanceValue.classList.add('distance-updating');
+        setTimeout(() => {
+          distanceValue.classList.remove('distance-updating');
+        }, 600);
+      }
       
       distanceValue.textContent = distFeet;
       distanceUnit.textContent = 'ft';
       
-      // Update friend info
+      // Update friend info with smooth transition
       friendName.textContent = `Friend: ${selectedFriend.user_id.substring(0, 8)}...`;
       friendDistance.textContent = dist>1000 ? (dist/1000).toFixed(1)+' km' : Math.round(dist)+' m';
       
-      // Update direction text
+      // Update direction text with smooth animation
       let directionDescription = '';
       if (diff < 15 || diff > 345) {
         directionDescription = 'straight ahead';
@@ -525,12 +701,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         directionArrow.classList.add('arrow-misaligned');
       }
       
-      // Animate text change
-      directionText.style.animation = 'none';
-      setTimeout(() => {
-        directionText.style.animation = 'textSlide 0.4s ease-out';
-        directionText.textContent = directionDescription;
-      }, 10);
+      // Smooth text animation
+      if (directionText.textContent !== directionDescription) {
+        directionText.classList.add('text-entering');
+        setTimeout(() => {
+          directionText.textContent = directionDescription;
+        }, 200);
+        setTimeout(() => {
+          directionText.classList.remove('text-entering');
+        }, 500);
+      }
     }
 
     function updateFriendMarker(data){
@@ -542,19 +722,20 @@ document.addEventListener('DOMContentLoaded', async () => {
           radius:8,color:'#e81a1a',fillColor:'#e81a1a',fillOpacity:0.9
         }).addTo(map);
         
-        // Add popup with user info
         friendMarkers[data.user_id].bindPopup(`Friend: ${data.user_id}<br>Last updated: ${new Date(data.updated_at).toLocaleTimeString()}`);
         
-        // Add click event to select this friend
         friendMarkers[data.user_id].on('click',()=>{ 
           selectFriend(data);
         });
         
-        // Add to friends list
         addFriendToList(data);
       } else {
         friendMarkers[data.user_id].setLatLng(pos);
-        // Update friend list item
+        // Smooth marker update animation
+        friendMarkers[data.user_id].getElement().classList.add('marker-updating');
+        setTimeout(() => {
+          friendMarkers[data.user_id].getElement().classList.remove('marker-updating');
+        }, 800);
         updateFriendListItem(data);
       }
       
@@ -574,11 +755,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       friendItem.className = 'friend-item';
       friendItem.id = `friend-${data.user_id}`;
       friendItem.textContent = `Friend: ${data.user_id.substring(0, 8)}...`;
+      friendItem.style.opacity = '0';
+      friendItem.style.transform = 'translateY(10px)';
+      
       friendItem.addEventListener('click', () => {
         selectFriend(data);
       });
+      
       friendsList.appendChild(friendItem);
       friendListItems[data.user_id] = friendItem;
+      
+      // Smooth list item entrance
+      setTimeout(() => {
+        friendItem.style.opacity = '1';
+        friendItem.style.transform = 'translateY(0)';
+      }, 100);
     }
 
     function updateFriendListItem(data) {
@@ -588,19 +779,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function selectFriend(data) {
-      // Deselect previously selected friend
+      // Smooth selection animation
       if (selectedFriend && friendListItems[selectedFriend.user_id]) {
         friendListItems[selectedFriend.user_id].classList.remove('selected');
       }
       
-      // Select new friend
       selectedFriend = data;
       if (friendListItems[data.user_id]) {
         friendListItems[data.user_id].classList.add('selected');
       }
       
-      // Show navigation HUD
+      // Show navigation HUD with smooth animation
       navigationHUD.style.display = 'flex';
+      navigationHUD.classList.add('hud-visible');
       
       // Update route and arrow direction
       if (myMarker) {
@@ -610,10 +801,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateHUD(myPos.lat, myPos.lng);
       }
       
-      // Center map on selected friend
-      map.setView([data.lat, data.lng], map.getZoom());
+      // Smooth map transition
+      map.flyTo([data.lat, data.lng], map.getZoom(), {
+        duration: 1,
+        easeLinearity: 0.25
+      });
       
-      // Open popup
+      // Open popup with smooth animation
       if (friendMarkers[data.user_id]) {
         friendMarkers[data.user_id].openPopup();
       }
@@ -661,7 +855,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           const lng2 = lng + (distance/111111) * Math.sin(rad);
           compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
           
-          // Update arrow direction if a friend is selected
           if(selectedFriend){
             updateArrowDirection(lat, lng);
             updateHUD(lat, lng);
