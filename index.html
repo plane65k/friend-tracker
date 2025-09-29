@@ -297,6 +297,29 @@ html, body {
   line-height: 1.5;
 }
 
+/* Status Indicator */
+#statusIndicator {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+#statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4CD964;
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
 /* Super Smooth Apple-like Animations */
 @keyframes hudSlideIn {
   0% {
@@ -430,6 +453,17 @@ html, body {
   }
 }
 
+@keyframes statusPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
 .arrow-aligned {
   opacity: 1 !important;
   animation: arrowAlign 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
@@ -513,6 +547,12 @@ html, body {
   <div id="friendsHeader">Select a Friend</div>
 </div>
 
+<!-- Status Indicator -->
+<div id="statusIndicator">
+  <div id="statusDot"></div>
+  <span id="statusText">Live</span>
+</div>
+
 <!-- Compact Navigation HUD -->
 <div id="navigationHUD">
   <div id="hudLeft">
@@ -582,6 +622,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const androidCalibration = document.getElementById('androidCalibration');
   const calibrateButton = document.getElementById('calibrateButton');
   const calibrationArrow = document.getElementById('calibrationArrow');
+  const statusIndicator = document.getElementById('statusIndicator');
+  const statusText = document.getElementById('statusText');
 
   // Start enhanced radar sweep animation
   sweepPath.style.animation = 'sweep 3s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite';
@@ -668,6 +710,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   let lastAlpha = 0;
 
   function startTracking() {
+    // Show status indicator
+    statusIndicator.style.display = 'flex';
+
     // Smooth transitions for UI elements
     startButton.style.opacity = '0';
     setTimeout(() => {
@@ -729,6 +774,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let friendMarkers = {};
     let selectedFriend = null;
     let friendListItems = {};
+    let lastLocationUpdate = 0;
+    let lastFriendUpdate = 0;
 
     function deg2rad(d){ return d*Math.PI/180; }
     function rad2deg(r){ return r*180/Math.PI; }
@@ -1056,39 +1103,65 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function writeLocation(lat,lng,heading){
-      await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()});
+      const now = Date.now();
+      // Only update if at least 500ms have passed since last update
+      if (now - lastLocationUpdate > 500) {
+        lastLocationUpdate = now;
+        await supabase.from('locations').upsert({
+          user_id: userId,
+          lat: lat,
+          lng: lng,
+          heading: heading,
+          updated_at: new Date()
+        });
+      }
     }
 
     window.addEventListener('beforeunload', async()=>{
       await supabase.from('locations').delete().eq('user_id',userId);
     });
 
-    // Subscribe to updates
+    // Subscribe to updates with real-time optimization
     supabase.channel('locations_channel')
-      .on('postgres_changes',{event:'*',schema:'public',table:'locations'},payload=>{
+      .on('postgres_changes',{
+        event:'*',
+        schema:'public',
+        table:'locations'
+      }, payload => {
         if (payload.new) {
           updateFriendMarker(payload.new);
         }
       })
       .subscribe();
 
-    // GPS
-    navigator.geolocation.watchPosition(pos=>{
-      const lat=pos.coords.latitude, lng=pos.coords.longitude;
-      updateMyMarker(lat,lng);
-      writeLocation(lat,lng,myHeading);
-    }, err=>console.error(err), {enableHighAccuracy:true, maximumAge:0, timeout:30000});
+    // Fast GPS updates - every 1 second with high accuracy
+    navigator.geolocation.watchPosition(
+      pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        updateMyMarker(lat, lng);
+        writeLocation(lat, lng, myHeading);
+        statusText.textContent = `Live - ${new Date().toLocaleTimeString()}`;
+      }, 
+      err => console.error(err), 
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0, // No caching
+        timeout: 5000  // 5 second timeout
+      }
+    );
 
     // Compass (Android + iOS) with calibration support
-    window.addEventListener('deviceorientation', e=>{
+    window.addEventListener('deviceorientation', e => {
       const heading = calculateHeading(e);
       
       if(heading !== null){
         myHeading = heading;
         if(myMarker){
-          const lat=myMarker.getLatLng().lat, lng=myMarker.getLatLng().lng;
-          const distance=1000000;
-          const rad=deg2rad(myHeading);
+          const lat = myMarker.getLatLng().lat;
+          const lng = myMarker.getLatLng().lng;
+          const distance = 1000000;
+          const rad = deg2rad(myHeading);
           const lat2 = lat + (distance/111111) * Math.cos(rad);
           const lng2 = lng + (distance/111111) * Math.sin(rad);
           compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
@@ -1101,13 +1174,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // Poll + cleanup - Auto delete locations older than 30 seconds
-    setInterval(async()=>{
-      const {data,error}=await supabase.from('locations').select('*');
-      if(data) data.forEach(d=>updateFriendMarker(d));
-      const cutoff=new Date(Date.now()-30000).toISOString();
-      await supabase.from('locations').delete().lt('updated_at',cutoff);
-    },1000);
+    // Fast friend updates - poll every 500ms
+    setInterval(async () => {
+      const now = Date.now();
+      // Only poll if at least 500ms have passed since last update
+      if (now - lastFriendUpdate > 500) {
+        lastFriendUpdate = now;
+        try {
+          const {data, error} = await supabase.from('locations').select('*');
+          if(data) {
+            data.forEach(d => updateFriendMarker(d));
+            statusText.textContent = `Live - ${new Date().toLocaleTimeString()}`;
+          }
+        } catch (error) {
+          console.error('Error polling friends:', error);
+        }
+      }
+    }, 500);
+
+    // Cleanup old locations every 15 seconds (more frequent)
+    setInterval(async () => {
+      const cutoff = new Date(Date.now() - 15000).toISOString(); // 15 seconds
+      await supabase.from('locations').delete().lt('updated_at', cutoff);
+    }, 15000);
 
   }
 
