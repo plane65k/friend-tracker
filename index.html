@@ -160,6 +160,19 @@ html, body {
   transform-origin: center;
 }
 
+/* Precision Finding Arrow */
+#precisionArrow {
+  width: 80px;
+  height: 80px;
+  fill: none;
+  stroke: #FFFFFF;
+  stroke-width: 3;
+  opacity: 0.9;
+  transform-origin: center;
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.6));
+}
+
 #directionArrow {
   width: 40px;
   height: 30px;
@@ -289,6 +302,17 @@ html, body {
   }
 }
 
+@keyframes precisionPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 15px rgba(76, 217, 100, 0.8));
+  }
+  50% {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 25px rgba(76, 217, 100, 1));
+  }
+}
+
 @keyframes distancePulse {
   0% {
     transform: scale(1);
@@ -344,6 +368,12 @@ html, body {
 
 .arrow-misaligned {
   animation: arrowBob 2s ease-in-out infinite !important;
+}
+
+.precision-close {
+  stroke: #4CD964 !important;
+  animation: precisionPulse 1.5s ease-in-out infinite !important;
+  filter: drop-shadow(0 0 20px rgba(76, 217, 100, 0.8)) !important;
 }
 
 .distance-updating {
@@ -410,6 +440,9 @@ html, body {
     <svg id="radarSweep" viewBox="0 0 100 100">
       <path id="sweepPath" d="M 80,50 A 30,30 0 0 1 20,50" />
     </svg>
+    <svg id="precisionArrow" viewBox="0 0 100 100" style="display: none;">
+      <path d="M 50,15 L 60,35 L 75,35 L 65,50 L 75,65 L 60,65 L 50,85 L 40,65 L 25,65 L 35,50 L 25,35 L 40,35 Z" />
+    </svg>
     <svg id="directionArrow" viewBox="0 0 100 100">
       <path d="M 30,20 L 50,60 L 70,20 L 60,20 L 60,80 L 40,80 L 40,20 Z" />
     </svg>
@@ -445,6 +478,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const navigationHUD = document.getElementById('navigationHUD');
   const closeHUD = document.getElementById('closeHUD');
   const directionArrow = document.getElementById('directionArrow');
+  const precisionArrow = document.getElementById('precisionArrow');
   const distanceValue = document.getElementById('distanceValue');
   const distanceUnit = document.getElementById('distanceUnit');
   const directionText = document.getElementById('directionText');
@@ -459,6 +493,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     navigationHUD.style.animation = 'hudSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse forwards';
     setTimeout(() => {
       navigationHUD.style.display = 'none';
+      // Hide precision arrow when closing HUD
+      precisionArrow.style.display = 'none';
+      directionArrow.style.display = 'block';
     }, 400);
   });
 
@@ -643,14 +680,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       const targetBearing = bearing(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
       const diff = (targetBearing - myHeading + 360) % 360;
-      
-      // Smooth arrow rotation
-      directionArrow.style.transform = `rotate(${diff}deg)`;
-      
-      // Update distance with smooth animation
       const dist = haversine(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
       const distFeet = Math.round(dist * 3.28084);
       
+      // Check if user is within 10 feet (precision finding range)
+      const isCloseRange = distFeet <= 10;
+      
+      // Switch between precision arrow and regular arrow
+      if (isCloseRange) {
+        // Show precision arrow (green)
+        directionArrow.style.display = 'none';
+        precisionArrow.style.display = 'block';
+        precisionArrow.style.transform = `rotate(${diff}deg)`;
+        precisionArrow.classList.add('precision-close');
+      } else {
+        // Show regular arrow (white)
+        precisionArrow.style.display = 'none';
+        directionArrow.style.display = 'block';
+        directionArrow.style.transform = `rotate(${diff}deg)`;
+        precisionArrow.classList.remove('precision-close');
+      }
+      
+      // Update distance with smooth animation
       if (distanceValue.textContent !== distFeet.toString()) {
         distanceValue.classList.add('distance-updating');
         setTimeout(() => {
@@ -667,38 +718,56 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Update direction text with smooth animation
       let directionDescription = '';
-      if (diff < 15 || diff > 345) {
+      if (isCloseRange) {
+        directionDescription = 'very close - precision finding';
+      } else if (diff < 15 || diff > 345) {
         directionDescription = 'straight ahead';
-        directionArrow.classList.add('arrow-aligned');
-        directionArrow.classList.remove('arrow-misaligned');
+        if (!isCloseRange) {
+          directionArrow.classList.add('arrow-aligned');
+          directionArrow.classList.remove('arrow-misaligned');
+        }
       } else if (diff >= 15 && diff < 75) {
         directionDescription = 'slightly to your right';
-        directionArrow.classList.remove('arrow-aligned');
-        directionArrow.classList.add('arrow-misaligned');
+        if (!isCloseRange) {
+          directionArrow.classList.remove('arrow-aligned');
+          directionArrow.classList.add('arrow-misaligned');
+        }
       } else if (diff >= 75 && diff < 105) {
         directionDescription = 'to your right';
-        directionArrow.classList.remove('arrow-aligned');
-        directionArrow.classList.add('arrow-misaligned');
+        if (!isCloseRange) {
+          directionArrow.classList.remove('arrow-aligned');
+          directionArrow.classList.add('arrow-misaligned');
+        }
       } else if (diff >= 105 && diff < 165) {
         directionDescription = 'behind to your right';
-        directionArrow.classList.remove('arrow-aligned');
-        directionArrow.classList.add('arrow-misaligned');
+        if (!isCloseRange) {
+          directionArrow.classList.remove('arrow-aligned');
+          directionArrow.classList.add('arrow-misaligned');
+        }
       } else if (diff >= 165 && diff < 195) {
         directionDescription = 'behind you';
-        directionArrow.classList.remove('arrow-aligned');
-        directionArrow.classList.add('arrow-misaligned');
+        if (!isCloseRange) {
+          directionArrow.classList.remove('arrow-aligned');
+          directionArrow.classList.add('arrow-misaligned');
+        }
       } else if (diff >= 195 && diff < 255) {
         directionDescription = 'behind to your left';
-        directionArrow.classList.remove('arrow-aligned');
-        directionArrow.classList.add('arrow-misaligned');
+        if (!isCloseRange) {
+          directionArrow.classList.remove('arrow-aligned');
+          directionArrow.classList.add('arrow-misaligned');
+        }
       } else if (diff >= 255 && diff < 285) {
         directionDescription = 'to your left';
-        directionArrow.classList.remove('arrow-aligned');
-        directionArrow.classList.add('arrow-misaligned');
+        if (!isCloseRange) {
+          directionArrow.classList.remove('arrow-aligned');
+          directionArrow.classList.add('arrow-misaligned');
+        }
       } else {
         directionDescription = 'slightly to your left';
-        directionArrow.classList.remove('arrow-aligned');
-        directionArrow.classList.add('arrow-misaligned');
+        if (!isCloseRange) {
+          directionArrow.classList.remove('arrow-aligned');
+          directionArrow.classList.add('arrow-misaligned');
+        }
       }
       
       // Smooth text animation
