@@ -1,211 +1,272 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Friend Tracker Compass Precise</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<style>
-html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; background:#f5f5f5; }
-#map { height: 100%; width: 100%; display:none; }
-#startButton {
-  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-  padding:18px 28px; font-size:18px; z-index:1000;
-  border-radius:12px; background:#1a73e8; color:white; border:none; cursor:pointer;
-  box-shadow:0 4px 12px rgba(0,0,0,0.25);
-}
-#arrowUI {
-  position:absolute; top:15px; left:50%; transform:translateX(-50%);
-  z-index:1000; background:rgba(255,255,255,0.95); border-radius:10px;
-  padding:12px 18px; text-align:center; font-weight:bold; font-size:16px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.2);
-  display:none;
-}
-#arrowImage {
-  width:60px; height:60px; display:block; margin:0 auto 5px;
-  transform-origin: 50% 50%; transition: transform 0.1s linear;
-}
-#distance { font-size:18px; }
-</style>
+  <meta charset="UTF-8" />
+  <title>Friend Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet/dist/leaflet.css"
+  />
+  <style>
+    body {
+      margin: 0;
+      font-family: "Inter", sans-serif;
+      background: #f0f2f5;
+      color: #333;
+    }
+    #map {
+      height: 80vh;
+      width: 100%;
+    }
+    #controls {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 10px;
+      background: #fff;
+      border-top: 1px solid #ddd;
+    }
+    #friendList {
+      flex: 1;
+      padding: 5px;
+    }
+    .friend-btn {
+      background: #4caf50;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      margin: 4px;
+    }
+    .friend-btn:hover {
+      background: #45a049;
+    }
+    #arrow {
+      font-size: 48px;
+      text-align: center;
+      width: 60px;
+      height: 60px;
+      line-height: 60px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #4caf50;
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+    }
+    #distance {
+      text-align: center;
+      font-size: 16px;
+      margin-top: 75px;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
+  <div id="map"></div>
+  <div id="arrow">↑</div>
+  <div id="distance">Distance: -- m</div>
+  <div id="controls">
+    <div id="friendList"></div>
+  </div>
 
-<button id="startButton">Start Tracking Location</button>
-<div id="map"></div>
-<div id="arrowUI">
-  <img id="arrowImage" src="https://cdn-icons-png.flaticon.com/512/32/32339.png" alt="arrow">
-  <div id="distance">0 m</div>
-</div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script>
+    const supabaseUrl = "https://ngyjswujmvkqmqlymrhu.supabase.co";
+    const supabaseKey =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w";
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    const userId = "user_" + Math.random().toString(36).substring(2, 9);
 
-document.addEventListener('DOMContentLoaded', async () => {
-
-  const startButton = document.getElementById('startButton');
-  const arrowUI = document.getElementById('arrowUI');
-  const arrowImage = document.getElementById('arrowImage');
-  const distanceEl = document.getElementById('distance');
-
-  startButton.addEventListener('click', async () => {
-    // Ask iOS for motion/compass permission
-    if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-      try {
-        const resp = await DeviceOrientationEvent.requestPermission();
-        if (resp !== 'granted') { alert('Compass permission denied'); return; }
-      } catch (e) { console.error(e); return; }
-    }
-
-    if (!navigator.geolocation) { alert('Geolocation not supported'); return; }
-
-    startButton.style.display = 'none';
-    document.getElementById('map').style.display = 'block';
-    arrowUI.style.display = 'block';
-
-    // Supabase setup
-    const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
-    const supabaseKey = 'YOUR_SUPABASE_KEY';
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    let userId = localStorage.getItem('friendtrack_userId');
-    if (!userId) {
-      userId = 'user-' + Math.floor(Math.random() * 1000000);
-      localStorage.setItem('friendtrack_userId', userId);
-    }
-
-    const map = L.map('map').setView([0, 0], 2);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+    let map = L.map("map").setView([0, 0], 2);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors"
     }).addTo(map);
 
-    let myMarker = null;
-    let myHeading = 0;
-    let compassLine = null;
-    let firstUpdate = true;
-    let friendMarkers = {};
-    let selectedFriend = null;
+    let userMarker, headingLine;
+    let friends = {};
+    let currentHeading = 0;
+    let targetFriend = null;
 
-    function deg2rad(d){ return d*Math.PI/180; }
-    function rad2deg(r){ return r*180/Math.PI; }
+    // Request location permission
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(
+        async (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          if (!userMarker) {
+            userMarker = L.circleMarker([latitude, longitude], {
+              radius: 10,
+              color: "blue",
+              fillColor: "blue",
+              fillOpacity: 1
+            }).addTo(map);
+            map.setView([latitude, longitude], 17);
+          } else {
+            userMarker.setLatLng([latitude, longitude]);
+          }
 
-    function haversine(lat1, lon1, lat2, lon2){
-      const R = 6371000;
-      const dLat = deg2rad(lat2 - lat1);
-      const dLon = deg2rad(lon2 - lon1);
-      const a = Math.sin(dLat/2)**2 + Math.cos(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.sin(dLon/2)**2;
-      return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          if (headingLine) {
+            map.removeLayer(headingLine);
+          }
+          const dest = computeDestinationPoint(
+            { lat: latitude, lng: longitude },
+            currentHeading,
+            20000000 // ~20,000km = half Earth circumference
+          );
+          headingLine = L.polyline(
+            [
+              [latitude, longitude],
+              [dest.lat, dest.lng]
+            ],
+            { color: "blue", weight: 2 }
+          ).addTo(map);
+
+          await supabase.from("locations").upsert({
+            id: userId,
+            lat: latitude,
+            lng: longitude,
+            updated_at: new Date().toISOString()
+          });
+        },
+        (err) => console.error(err),
+        { enableHighAccuracy: true, maximumAge: 1000 }
+      );
+    } else {
+      alert("Geolocation not supported");
     }
 
-    function bearing(lat1, lon1, lat2, lon2){
-      const y = Math.sin(deg2rad(lon2-lon1))*Math.cos(deg2rad(lat2));
-      const x = Math.cos(deg2rad(lat1))*Math.sin(deg2rad(lat2)) -
-                Math.sin(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.cos(deg2rad(lon2-lon1));
-      return (rad2deg(Math.atan2(y,x))+360)%360;
-    }
-
-    function updateMyMarker(lat, lng){
-      if(!myMarker){
-        myMarker = L.circleMarker([lat,lng], {
-          radius:10, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:0.9
-        }).addTo(map);
-      } else {
-        myMarker.setLatLng([lat,lng]);
-      }
-
-      if(firstUpdate){ map.setView([lat,lng], 16); firstUpdate=false; }
-
-      // Update direction line (infinite)
-      const distance = 1000000; // huge distance for "infinite" line
-      const rad = deg2rad(myHeading);
-      const lat2 = lat + (distance/111111) * Math.cos(rad); // approx conversion meters->degrees
-      const lng2 = lng + (distance/111111) * Math.sin(rad);
-
-      if(!compassLine){
-        compassLine = L.polyline([[lat,lng],[lat2,lng2]], {color:'#1a73e8',weight:3}).addTo(map);
-      } else {
-        compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
-      }
-
-      // Arrow to friend
-      if(selectedFriend){
-        const targetBearing = bearing(lat, lng, selectedFriend.lat, selectedFriend.lng);
-        const diff = (targetBearing - myHeading + 360) % 360;
-        arrowImage.style.transform = `rotate(${diff}deg)`;
-        const dist = haversine(lat, lng, selectedFriend.lat, selectedFriend.lng);
-        distanceEl.textContent = dist>1000 ? (dist/1000).toFixed(2)+' km' : Math.round(dist)+' m';
-      }
-    }
-
-    function updateFriendMarker(data){
-      if(data.user_id===userId) return;
-      const pos=[data.lat,data.lng];
-      if(!friendMarkers[data.user_id]){
-        friendMarkers[data.user_id] = L.circleMarker(pos,{
-          radius:8,color:'#e81a1a',fillColor:'#e81a1a',fillOpacity:0.9
-        }).addTo(map);
-        friendMarkers[data.user_id].on('click',()=>{ selectedFriend=data; });
-      } else {
-        friendMarkers[data.user_id].setLatLng(pos);
-      }
-      if(selectedFriend && selectedFriend.user_id===data.user_id) selectedFriend=data;
-    }
-
-    async function writeLocation(lat,lng,heading){
-      await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()});
-    }
-
-    window.addEventListener('beforeunload', async()=>{
-      await supabase.from('locations').delete().eq('user_id',userId);
-    });
-
-    // Subscribe to updates
-    supabase.channel('locations_channel')
-      .on('postgres_changes',{event:'*',schema:'public',table:'locations'},payload=>{
-        updateFriendMarker(payload.new);
-      })
-      .subscribe();
-
-    // GPS
-    navigator.geolocation.watchPosition(pos=>{
-      const lat=pos.coords.latitude, lng=pos.coords.longitude;
-      updateMyMarker(lat,lng);
-      writeLocation(lat,lng,myHeading);
-    }, err=>console.error(err), {enableHighAccuracy:true, maximumAge:0, timeout:30000});
-
-    // Compass (Android + iOS)
-    window.addEventListener('deviceorientation', e=>{
+    // Handle compass (iOS + Android)
+    function handleOrientation(event) {
       let heading;
-      if(typeof e.webkitCompassHeading!=='undefined'){ // iOS
-        heading = e.webkitCompassHeading;
-      } else if(e.alpha!=null){ // Android
-        heading = 360 - e.alpha; // convert to compass bearing
+      if (event.webkitCompassHeading !== undefined) {
+        heading = event.webkitCompassHeading; // iOS
+      } else {
+        heading = 360 - event.alpha; // Android
       }
-      if(heading!=null){
-        myHeading = heading;
-        if(myMarker){
-          const lat=myMarker.getLatLng().lat, lng=myMarker.getLatLng().lng;
-          const distance=1000000;
-          const rad=deg2rad(myHeading);
-          const lat2 = lat + (distance/111111) * Math.cos(rad);
-          const lng2 = lng + (distance/111111) * Math.sin(rad);
-          compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
+      currentHeading = heading;
+    }
+
+    if (window.DeviceOrientationEvent) {
+      if (
+        typeof DeviceOrientationEvent.requestPermission === "function"
+      ) {
+        DeviceOrientationEvent.requestPermission()
+          .then((resp) => {
+            if (resp === "granted") {
+              window.addEventListener("deviceorientation", handleOrientation);
+            }
+          })
+          .catch(console.error);
+      } else {
+        window.addEventListener("deviceorientationabsolute", handleOrientation);
+      }
+    }
+
+    // Load friends
+    async function loadFriends() {
+      const { data } = await supabase.from("locations").select("*");
+      renderFriends(data);
+    }
+
+    function renderFriends(rows) {
+      document.getElementById("friendList").innerHTML = "";
+      rows.forEach((row) => {
+        if (row.id === userId) return;
+        if (!friends[row.id]) {
+          friends[row.id] = L.circleMarker([row.lat, row.lng], {
+            radius: 10,
+            color: "red",
+            fillColor: "red",
+            fillOpacity: 1
+          }).addTo(map);
+        } else {
+          friends[row.id].setLatLng([row.lat, row.lng]);
         }
+        const btn = document.createElement("button");
+        btn.className = "friend-btn";
+        btn.innerText = row.id;
+        btn.onclick = () => (targetFriend = row);
+        document.getElementById("friendList").appendChild(btn);
+      });
+    }
+
+    // Guide arrow update
+    setInterval(() => {
+      if (targetFriend && userMarker) {
+        const userLatLng = userMarker.getLatLng();
+        const bearing = bearingTo(
+          [userLatLng.lat, userLatLng.lng],
+          [targetFriend.lat, targetFriend.lng]
+        );
+        const diff = (bearing - currentHeading + 360) % 360;
+
+        const arrow = document.getElementById("arrow");
+        arrow.style.transform = `translateX(-50%) rotate(${diff}deg)`;
+        const dist = haversineDistance(
+          [userLatLng.lat, userLatLng.lng],
+          [targetFriend.lat, targetFriend.lng]
+        );
+        document.getElementById("distance").innerText =
+          "Distance: " + Math.round(dist) + " m";
       }
-    });
+    }, 1000);
 
-    // Poll + cleanup
-    setInterval(async()=>{
-      const {data,error}=await supabase.from('locations').select('*');
-      if(data) data.forEach(d=>updateFriendMarker(d));
-      const cutoff=new Date(Date.now()-30000).toISOString();
-      await supabase.from('locations').delete().lt('updated_at',cutoff);
-    },1000);
+    // Refresh friend list
+    setInterval(loadFriends, 5000);
 
-  });
+    // Helpers
+    function computeDestinationPoint(start, brng, dist) {
+      const R = 6371e3;
+      const δ = dist / R;
+      const θ = (brng * Math.PI) / 180;
+      const φ1 = (start.lat * Math.PI) / 180;
+      const λ1 = (start.lng * Math.PI) / 180;
 
-});
-</script>
+      const φ2 = Math.asin(
+        Math.sin(φ1) * Math.cos(δ) +
+          Math.cos(φ1) * Math.sin(δ) * Math.cos(θ)
+      );
+      const λ2 =
+        λ1 +
+        Math.atan2(
+          Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+          Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2)
+        );
+      return { lat: (φ2 * 180) / Math.PI, lng: (λ2 * 180) / Math.PI };
+    }
+
+    function bearingTo(from, to) {
+      const φ1 = (from[0] * Math.PI) / 180;
+      const φ2 = (to[0] * Math.PI) / 180;
+      const λ1 = (from[1] * Math.PI) / 180;
+      const λ2 = (to[1] * Math.PI) / 180;
+      const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
+      const x =
+        Math.cos(φ1) * Math.sin(φ2) -
+        Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
+      return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+    }
+
+    function haversineDistance(coords1, coords2) {
+      const R = 6371e3;
+      const φ1 = (coords1[0] * Math.PI) / 180;
+      const φ2 = (coords2[0] * Math.PI) / 180;
+      const Δφ = ((coords2[0] - coords1[0]) * Math.PI) / 180;
+      const Δλ = ((coords2[1] - coords1[1]) * Math.PI) / 180;
+      const a =
+        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) *
+          Math.cos(φ2) *
+          Math.sin(Δλ / 2) *
+          Math.sin(Δλ / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+  </script>
 </body>
 </html>
