@@ -130,6 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let myMarker = null;
     let myHeading = 0;
     let compassLine = null;
+    let routeLine = null;
     let firstUpdate = true;
     let friendMarkers = {};
     let selectedFriend = null;
@@ -177,9 +178,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
       }
 
-      // Arrow to friend
+      // Update route to friend
       if(selectedFriend){
+        updateRouteToFriend(lat, lng);
         updateArrowDirection(lat, lng);
+      }
+    }
+
+    function updateRouteToFriend(myLat, myLng) {
+      if (!selectedFriend) return;
+      
+      // Create or update the route line
+      const routeCoordinates = [
+        [myLat, myLng],
+        [selectedFriend.lat, selectedFriend.lng]
+      ];
+      
+      if(!routeLine){
+        routeLine = L.polyline(routeCoordinates, {
+          color: '#4CAF50',
+          weight: 4,
+          opacity: 0.7,
+          dashArray: '10, 10'
+        }).addTo(map);
+      } else {
+        routeLine.setLatLngs(routeCoordinates);
       }
     }
 
@@ -222,6 +245,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         selectedFriend = data;
         if (myMarker) {
           const myPos = myMarker.getLatLng();
+          updateRouteToFriend(myPos.lat, myPos.lng);
           updateArrowDirection(myPos.lat, myPos.lng);
         }
       }
@@ -257,9 +281,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         friendListItems[data.user_id].classList.add('selected');
       }
       
-      // Update arrow direction
+      // Update route and arrow direction
       if (myMarker) {
         const myPos = myMarker.getLatLng();
+        updateRouteToFriend(myPos.lat, myPos.lng);
         updateArrowDirection(myPos.lat, myPos.lng);
       }
       
@@ -322,7 +347,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // Poll + cleanup
+    // Poll + cleanup - Auto delete locations older than 30 seconds
     setInterval(async()=>{
       const {data,error}=await supabase.from('locations').select('*');
       if(data) data.forEach(d=>updateFriendMarker(d));
