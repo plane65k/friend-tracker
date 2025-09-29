@@ -3,572 +3,313 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Friend Tracker Compass</title>
+<title>Friend Tracker Compass Precise</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
-html, body { 
-  height: 100%; 
-  margin: 0; 
-  font-family: Arial, sans-serif; 
-  background: #f5f5f5; 
-}
-#map { 
-  height: 100%; 
-  width: 100%; 
-  display: none; 
-}
-#permissionUI {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 1000;
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  text-align: center;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-  max-width: 400px;
-  width: 90%;
-}
-#permissionUI h2 {
-  margin-top: 0;
-  color: #1a73e8;
-}
-.permission-step {
-  margin: 20px 0;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  text-align: left;
-}
-.permission-step h3 {
-  margin: 0 0 10px 0;
-  font-size: 16px;
-}
-.permission-step p {
-  margin: 0 0 15px 0;
-  font-size: 14px;
-  color: #666;
-}
-.permission-btn {
-  padding: 10px 16px;
-  font-size: 14px;
-  border-radius: 6px;
-  background: #1a73e8;
-  color: white;
-  border: none;
-  cursor: pointer;
-  margin-right: 8px;
-}
-.permission-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-.permission-btn.granted {
-  background: #4CAF50;
-}
+html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; background:#f5f5f5; }
+#map { height: 100%; width: 100%; display:none; }
 #startButton {
-  padding: 15px 30px;
-  font-size: 16px;
-  border-radius: 8px;
-  background: #1a73e8;
-  color: white;
-  border: none;
-  cursor: pointer;
-  width: 100%;
-  margin-top: 10px;
-}
-#skipButton {
-  padding: 10px 20px;
-  font-size: 14px;
-  border-radius: 6px;
-  background: transparent;
-  color: #666;
-  border: 1px solid #ddd;
-  cursor: pointer;
-  margin-top: 10px;
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  padding:18px 28px; font-size:18px; z-index:1000;
+  border-radius:12px; background:#1a73e8; color:white; border:none; cursor:pointer;
+  box-shadow:0 4px 12px rgba(0,0,0,0.25);
 }
 #arrowUI {
-  position: absolute;
-  top: 15px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000;
-  background: rgba(255,255,255,0.95);
-  border-radius: 10px;
-  padding: 12px 18px;
-  text-align: center;
-  font-weight: bold;
-  font-size: 16px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  display: none;
+  position:absolute; top:15px; left:50%; transform:translateX(-50%);
+  z-index:1000; background:rgba(255,255,255,0.95); border-radius:10px;
+  padding:12px 18px; text-align:center; font-weight:bold; font-size:16px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.2);
+  display:none;
 }
 #arrowImage {
-  width: 60px;
-  height: 60px;
-  display: block;
-  margin: 0 auto 5px;
-  transform-origin: 50% 50%;
-  transition: transform 0.1s linear;
+  width:60px; height:60px; display:block; margin:0 auto 5px;
+  transform-origin: 50% 50%; transition: transform 0.1s linear;
 }
-#distance {
-  font-size: 18px;
+#distance { font-size:18px; }
+#friendsList {
+  position:absolute; top:15px; right:15px; z-index:1000;
+  background:rgba(255,255,255,0.95); border-radius:10px;
+  padding:12px; max-height:300px; overflow-y:auto;
+  box-shadow:0 4px 12px rgba(0,0,0,0.2); display:none;
+  min-width:200px;
 }
-#userList {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  z-index: 1000;
-  background: rgba(255,255,255,0.95);
-  border-radius: 10px;
-  padding: 12px;
-  max-height: 300px;
-  overflow-y: auto;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  display: none;
-  min-width: 200px;
+.friend-item {
+  padding:8px 12px; margin:5px 0; border-radius:6px;
+  cursor:pointer; transition:background 0.2s;
 }
-.user-item {
-  padding: 8px 12px;
-  margin: 5px 0;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.2s;
+.friend-item:hover { background:#f0f0f0; }
+.friend-item.selected {
+  background:#1a73e8; color:white;
 }
-.user-item:hover {
-  background: #f0f0f0;
-}
-.user-item.selected {
-  background: #1a73e8;
-  color: white;
-}
-#userListHeader {
-  font-weight: bold;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e0e0e0;
-}
-#statusMessage {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000;
-  background: rgba(0,0,0,0.8);
-  color: white;
-  padding: 10px 20px;
-  border-radius: 20px;
-  font-size: 14px;
-  display: none;
-}
-#compassWarning {
-  color: #ff9800;
-  font-size: 12px;
-  margin-top: 5px;
-  display: none;
+#friendsHeader {
+  font-weight:bold; margin-bottom:8px; padding-bottom:8px;
+  border-bottom:1px solid #e0e0e0;
 }
 </style>
 </head>
 <body>
 
-<div id="permissionUI">
-  <h2>Friend Tracker</h2>
-  <p>Enable permissions for the best experience:</p>
-  
-  <div class="permission-step">
-    <h3>📍 Location Access</h3>
-    <p>Required to track your position and show friends on the map</p>
-    <button id="locationPermissionBtn" class="permission-btn" onclick="requestLocationPermission()">Grant Location Access</button>
-    <span id="locationStatus"></span>
-  </div>
-  
-  <div class="permission-step">
-    <h3>🧭 Motion & Compass Access</h3>
-    <p>Required to show direction to friends and your orientation</p>
-    <button id="compassPermissionBtn" class="permission-btn" onclick="requestCompassPermission()">Grant Compass Access</button>
-    <div id="compassWarning">Compass access denied. Direction features limited.</div>
-  </div>
-  
-  <button id="startButton" onclick="startTrackingApp()">Start Tracking Friends</button>
-  <button id="skipButton" onclick="skipPermissions()">Skip Permissions</button>
-</div>
-
+<button id="startButton">Start Tracking Location</button>
 <div id="map"></div>
 <div id="arrowUI">
   <img id="arrowImage" src="https://cdn-icons-png.flaticon.com/512/32/32339.png" alt="arrow">
   <div id="distance">0 m</div>
 </div>
-<div id="userList">
-  <div id="userListHeader">Select a Friend</div>
+<div id="friendsList">
+  <div id="friendsHeader">Select a Friend</div>
 </div>
-<div id="statusMessage"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-// Global variables
-let locationPermissionGranted = false;
-let compassPermissionGranted = false;
-let supabase;
-
 document.addEventListener('DOMContentLoaded', async () => {
-  // Initialize Supabase
-  const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
-  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
-  supabase = createClient(supabaseUrl, supabaseKey);
-  
-  // Auto-request compass permission on iOS
-  if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-    setTimeout(() => {
-      requestCompassPermission();
-    }, 500);
-  }
-});
 
-function requestLocationPermission() {
-  if (!navigator.geolocation) {
-    showStatus('Geolocation is not supported by this browser', 'error');
-    return;
-  }
-  
-  showStatus('Requesting location permission...', 'info');
-  
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      locationPermissionGranted = true;
-      const btn = document.getElementById('locationPermissionBtn');
-      btn.textContent = '✓ Location Access Granted';
-      btn.classList.add('granted');
-      document.getElementById('locationStatus').textContent = '';
-      showStatus('Location access granted!', 'success');
-    },
-    (error) => {
-      let errorMessage = 'Location permission denied';
-      switch(error.code) {
-        case error.PERMISSION_DENIED:
-          errorMessage = 'Location permission denied. Map will show friends but not your location.';
-          document.getElementById('locationStatus').textContent = 'Permission denied';
-          break;
-        case error.POSITION_UNAVAILABLE:
-          errorMessage = 'Location information is unavailable.';
-          break;
-        case error.TIMEOUT:
-          errorMessage = 'Location request timed out.';
-          break;
-        default:
-          errorMessage = 'An unknown error occurred.';
-          break;
+  const startButton = document.getElementById('startButton');
+  const arrowUI = document.getElementById('arrowUI');
+  const arrowImage = document.getElementById('arrowImage');
+  const distanceEl = document.getElementById('distance');
+  const friendsList = document.getElementById('friendsList');
+
+  startButton.addEventListener('click', async () => {
+    // Ask iOS for motion/compass permission
+    if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
+      try {
+        const resp = await DeviceOrientationEvent.requestPermission();
+        if (resp !== 'granted') { 
+          alert('Compass permission denied. Direction features will not work.'); 
+        }
+      } catch (e) { 
+        console.error(e); 
+        alert('Error requesting compass permission: ' + e.message);
       }
-      showStatus(errorMessage, 'error');
-    },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-  );
-}
+    }
 
-async function requestCompassPermission() {
-  showStatus('Requesting compass permission...', 'info');
-  
-  // Check if DeviceOrientationEvent is supported
-  if (!window.DeviceOrientationEvent) {
-    showStatus('Device orientation is not supported by this device', 'error');
-    document.getElementById('compassWarning').style.display = 'block';
-    return;
-  }
-  
-  // iOS specific permission request
-  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    try {
-      const permissionState = await DeviceOrientationEvent.requestPermission();
-      if (permissionState === 'granted') {
-        compassPermissionGranted = true;
-        const btn = document.getElementById('compassPermissionBtn');
-        btn.textContent = '✓ Compass Access Granted';
-        btn.classList.add('granted');
-        document.getElementById('compassWarning').style.display = 'none';
-        showStatus('Compass access granted!', 'success');
-        // Start listening to device orientation
-        window.addEventListener('deviceorientation', handleDeviceOrientation);
+    if (!navigator.geolocation) { 
+      alert('Geolocation not supported'); 
+      return; 
+    }
+
+    // Request location permission
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        // Location permission granted
+        startTracking();
+      },
+      (error) => {
+        alert('Location permission denied or error: ' + error.message);
+        return;
+      },
+      { enableHighAccuracy: true }
+    );
+  });
+
+  function startTracking() {
+    startButton.style.display = 'none';
+    document.getElementById('map').style.display = 'block';
+    arrowUI.style.display = 'block';
+    friendsList.style.display = 'block';
+
+    // Supabase setup with your provided credentials
+    const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    let userId = localStorage.getItem('friendtrack_userId');
+    if (!userId) {
+      userId = 'user-' + Math.floor(Math.random() * 1000000);
+      localStorage.setItem('friendtrack_userId', userId);
+    }
+
+    const map = L.map('map').setView([0, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let myMarker = null;
+    let myHeading = 0;
+    let compassLine = null;
+    let firstUpdate = true;
+    let friendMarkers = {};
+    let selectedFriend = null;
+    let friendListItems = {};
+
+    function deg2rad(d){ return d*Math.PI/180; }
+    function rad2deg(r){ return r*180/Math.PI; }
+
+    function haversine(lat1, lon1, lat2, lon2){
+      const R = 6371000;
+      const dLat = deg2rad(lat2 - lat1);
+      const dLon = deg2rad(lon2 - lon1);
+      const a = Math.sin(dLat/2)**2 + Math.cos(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.sin(dLon/2)**2;
+      return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function bearing(lat1, lon1, lat2, lon2){
+      const y = Math.sin(deg2rad(lon2-lon1))*Math.cos(deg2rad(lat2));
+      const x = Math.cos(deg2rad(lat1))*Math.sin(deg2rad(lat2)) -
+                Math.sin(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.cos(deg2rad(lon2-lon1));
+      return (rad2deg(Math.atan2(y,x))+360)%360;
+    }
+
+    function updateMyMarker(lat, lng){
+      if(!myMarker){
+        myMarker = L.circleMarker([lat,lng], {
+          radius:10, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:0.9
+        }).addTo(map);
+        myMarker.bindPopup("You").openPopup();
       } else {
-        showStatus('Compass permission denied. Direction features limited.', 'warning');
-        document.getElementById('compassWarning').style.display = 'block';
+        myMarker.setLatLng([lat,lng]);
       }
-    } catch (error) {
-      showStatus('Error requesting compass permission: ' + error.message, 'error');
-      document.getElementById('compassWarning').style.display = 'block';
-    }
-  } else {
-    // For Android and other browsers that don't require explicit permission
-    compassPermissionGranted = true;
-    const btn = document.getElementById('compassPermissionBtn');
-    btn.textContent = '✓ Compass Access Granted';
-    btn.classList.add('granted');
-    document.getElementById('compassWarning').style.display = 'none';
-    showStatus('Compass access granted!', 'success');
-    // Start listening to device orientation
-    window.addEventListener('deviceorientation', handleDeviceOrientation);
-  }
-}
 
-function handleDeviceOrientation(e) {
-  // This will be implemented in the main tracking function
-  console.log('Device orientation:', e);
-}
+      if(firstUpdate){ map.setView([lat,lng], 16); firstUpdate=false; }
 
-function showStatus(message, type = 'info') {
-  const statusEl = document.getElementById('statusMessage');
-  statusEl.textContent = message;
-  statusEl.style.display = 'block';
-  
-  // Set color based on type
-  if (type === 'error') {
-    statusEl.style.background = 'rgba(211, 47, 47, 0.9)';
-  } else if (type === 'success') {
-    statusEl.style.background = 'rgba(56, 142, 60, 0.9)';
-  } else if (type === 'warning') {
-    statusEl.style.background = 'rgba(245, 124, 0, 0.9)';
-  } else {
-    statusEl.style.background = 'rgba(0, 0, 0, 0.8)';
-  }
-  
-  // Hide after 5 seconds for non-error messages
-  if (type !== 'error') {
-    setTimeout(() => {
-      statusEl.style.display = 'none';
-    }, 5000);
-  }
-}
+      // Update direction line (infinite)
+      const distance = 1000000; // huge distance for "infinite" line
+      const rad = deg2rad(myHeading);
+      const lat2 = lat + (distance/111111) * Math.cos(rad); // approx conversion meters->degrees
+      const lng2 = lng + (distance/111111) * Math.sin(rad);
 
-function skipPermissions() {
-  showStatus('Starting with limited features...', 'warning');
-  startTrackingApp();
-}
+      if(!compassLine){
+        compassLine = L.polyline([[lat,lng],[lat2,lng2]], {color:'#1a73e8',weight:3}).addTo(map);
+      } else {
+        compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
+      }
 
-function startTrackingApp() {
-  document.getElementById('permissionUI').style.display = 'none';
-  document.getElementById('map').style.display = 'block';
-  document.getElementById('arrowUI').style.display = 'block';
-  document.getElementById('userList').style.display = 'block';
-  
-  showStatus('Starting friend tracking...', 'info');
-
-  let userId = localStorage.getItem('friendtrack_userId');
-  if (!userId) {
-    userId = 'user-' + Math.floor(Math.random() * 1000000);
-    localStorage.setItem('friendtrack_userId', userId);
-  }
-
-  const map = L.map('map').setView([0, 0], 2);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
-
-  let myMarker = null;
-  let myHeading = 0;
-  let compassLine = null;
-  let firstUpdate = true;
-  let friendMarkers = {};
-  let selectedFriend = null;
-  let userListItems = {};
-
-  function deg2rad(d){ return d*Math.PI/180; }
-  function rad2deg(r){ return r*180/Math.PI; }
-
-  function haversine(lat1, lon1, lat2, lon2){
-    const R = 6371000;
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a = Math.sin(dLat/2)**2 + Math.cos(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.sin(dLon/2)**2;
-    return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
-
-  function bearing(lat1, lon1, lat2, lon2){
-    const y = Math.sin(deg2rad(lon2-lon1))*Math.cos(deg2rad(lat2));
-    const x = Math.cos(deg2rad(lat1))*Math.sin(deg2rad(lat2)) -
-              Math.sin(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.cos(deg2rad(lon2-lon1));
-    return (rad2deg(Math.atan2(y,x))+360)%360;
-  }
-
-  function updateMyMarker(lat, lng){
-    if(!myMarker){
-      myMarker = L.circleMarker([lat,lng], {
-        radius:10, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:0.9
-      }).addTo(map);
-      myMarker.bindPopup("You").openPopup();
-    } else {
-      myMarker.setLatLng([lat,lng]);
+      // Arrow to friend
+      if(selectedFriend){
+        updateArrowDirection(lat, lng);
+      }
     }
 
-    if(firstUpdate){ 
-      map.setView([lat,lng], 16); 
-      firstUpdate=false; 
-      showStatus('Location tracking started!', 'success');
-    }
-
-    // Update direction line (infinite) - always show even without compass
-    const distance = 1000000; // huge distance for "infinite" line
-    const rad = deg2rad(myHeading);
-    const lat2 = lat + (distance/111111) * Math.cos(rad); // approx conversion meters->degrees
-    const lng2 = lng + (distance/111111) * Math.sin(rad);
-
-    if(!compassLine){
-      compassLine = L.polyline([[lat,lng],[lat2,lng2]], {color:'#1a73e8',weight:3, dashArray: '10, 10'}).addTo(map);
-    } else {
-      compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
-    }
-
-    // Arrow to friend
-    if(selectedFriend){
-      updateArrowDirection(lat, lng);
-    }
-  }
-
-  function updateArrowDirection(myLat, myLng) {
-    if (!selectedFriend) return;
-    
-    const targetBearing = bearing(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
-    const diff = (targetBearing - myHeading + 360) % 360;
-    document.getElementById('arrowImage').style.transform = `rotate(${diff}deg)`;
-    const dist = haversine(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
-    document.getElementById('distance').textContent = dist>1000 ? (dist/1000).toFixed(2)+' km' : Math.round(dist)+' m';
-  }
-
-  function updateFriendMarker(data){
-    if(data.user_id===userId) return;
-    
-    const pos=[data.lat,data.lng];
-    if(!friendMarkers[data.user_id]){
-      friendMarkers[data.user_id] = L.circleMarker(pos,{
-        radius:8,color:'#e81a1a',fillColor:'#e81a1a',fillOpacity:0.9
-      }).addTo(map);
+    function updateArrowDirection(myLat, myLng) {
+      if (!selectedFriend) return;
       
-      // Add popup with user info
-      friendMarkers[data.user_id].bindPopup(`User: ${data.user_id}<br>Last updated: ${new Date(data.updated_at).toLocaleTimeString()}`);
+      const targetBearing = bearing(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
+      const diff = (targetBearing - myHeading + 360) % 360;
+      arrowImage.style.transform = `rotate(${diff}deg)`;
+      const dist = haversine(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
+      distanceEl.textContent = dist>1000 ? (dist/1000).toFixed(2)+' km' : Math.round(dist)+' m';
+    }
+
+    function updateFriendMarker(data){
+      if(data.user_id===userId) return;
       
-      // Add click event to select this friend
-      friendMarkers[data.user_id].on('click',()=>{ 
+      const pos=[data.lat,data.lng];
+      if(!friendMarkers[data.user_id]){
+        friendMarkers[data.user_id] = L.circleMarker(pos,{
+          radius:8,color:'#e81a1a',fillColor:'#e81a1a',fillOpacity:0.9
+        }).addTo(map);
+        
+        // Add popup with user info
+        friendMarkers[data.user_id].bindPopup(`Friend: ${data.user_id}<br>Last updated: ${new Date(data.updated_at).toLocaleTimeString()}`);
+        
+        // Add click event to select this friend
+        friendMarkers[data.user_id].on('click',()=>{ 
+          selectFriend(data);
+        });
+        
+        // Add to friends list
+        addFriendToList(data);
+      } else {
+        friendMarkers[data.user_id].setLatLng(pos);
+        // Update friend list item
+        updateFriendListItem(data);
+      }
+      
+      if(selectedFriend && selectedFriend.user_id===data.user_id) {
+        selectedFriend = data;
+        if (myMarker) {
+          const myPos = myMarker.getLatLng();
+          updateArrowDirection(myPos.lat, myPos.lng);
+        }
+      }
+    }
+
+    function addFriendToList(data) {
+      const friendItem = document.createElement('div');
+      friendItem.className = 'friend-item';
+      friendItem.id = `friend-${data.user_id}`;
+      friendItem.textContent = `Friend: ${data.user_id.substring(0, 8)}...`;
+      friendItem.addEventListener('click', () => {
         selectFriend(data);
       });
-      
-      // Add to user list
-      addUserToList(data);
-    } else {
-      friendMarkers[data.user_id].setLatLng(pos);
-      // Update user list item
-      updateUserListItem(data);
+      friendsList.appendChild(friendItem);
+      friendListItems[data.user_id] = friendItem;
     }
-    
-    if(selectedFriend && selectedFriend.user_id===data.user_id) {
+
+    function updateFriendListItem(data) {
+      if (friendListItems[data.user_id]) {
+        friendListItems[data.user_id].textContent = `Friend: ${data.user_id.substring(0, 8)}... (${new Date(data.updated_at).toLocaleTimeString()})`;
+      }
+    }
+
+    function selectFriend(data) {
+      // Deselect previously selected friend
+      if (selectedFriend && friendListItems[selectedFriend.user_id]) {
+        friendListItems[selectedFriend.user_id].classList.remove('selected');
+      }
+      
+      // Select new friend
       selectedFriend = data;
+      if (friendListItems[data.user_id]) {
+        friendListItems[data.user_id].classList.add('selected');
+      }
+      
+      // Update arrow direction
       if (myMarker) {
         const myPos = myMarker.getLatLng();
         updateArrowDirection(myPos.lat, myPos.lng);
       }
-    }
-  }
-
-  function addUserToList(data) {
-    const userItem = document.createElement('div');
-    userItem.className = 'user-item';
-    userItem.id = `user-${data.user_id}`;
-    userItem.textContent = `User: ${data.user_id.substring(0, 8)}...`;
-    userItem.addEventListener('click', () => {
-      selectFriend(data);
-    });
-    document.getElementById('userList').appendChild(userItem);
-    userListItems[data.user_id] = userItem;
-  }
-
-  function updateUserListItem(data) {
-    if (userListItems[data.user_id]) {
-      userListItems[data.user_id].textContent = `User: ${data.user_id.substring(0, 8)}... (${new Date(data.updated_at).toLocaleTimeString()})`;
-    }
-  }
-
-  function selectFriend(data) {
-    // Deselect previously selected friend
-    if (selectedFriend && userListItems[selectedFriend.user_id]) {
-      userListItems[selectedFriend.user_id].classList.remove('selected');
-    }
-    
-    // Select new friend
-    selectedFriend = data;
-    if (userListItems[data.user_id]) {
-      userListItems[data.user_id].classList.add('selected');
-    }
-    
-    // Update arrow direction
-    if (myMarker) {
-      const myPos = myMarker.getLatLng();
-      updateArrowDirection(myPos.lat, myPos.lng);
-    }
-    
-    // Center map on selected friend
-    map.setView([data.lat, data.lng], map.getZoom());
-    
-    // Open popup
-    if (friendMarkers[data.user_id]) {
-      friendMarkers[data.user_id].openPopup();
-    }
-    
-    showStatus(`Now tracking user: ${data.user_id.substring(0, 8)}...`, 'info');
-  }
-
-  async function writeLocation(lat,lng,heading){
-    await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()});
-  }
-
-  window.addEventListener('beforeunload', async()=>{
-    await supabase.from('locations').delete().eq('user_id',userId);
-  });
-
-  // Subscribe to updates
-  supabase.channel('locations_channel')
-    .on('postgres_changes',{event:'*',schema:'public',table:'locations'},payload=>{
-      if (payload.new) {
-        updateFriendMarker(payload.new);
+      
+      // Center map on selected friend
+      map.setView([data.lat, data.lng], map.getZoom());
+      
+      // Open popup
+      if (friendMarkers[data.user_id]) {
+        friendMarkers[data.user_id].openPopup();
       }
-    })
-    .subscribe();
+    }
 
-  // GPS tracking - only if permission granted
-  if (locationPermissionGranted) {
-    navigator.geolocation.watchPosition(
-      pos => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        updateMyMarker(lat, lng);
-        writeLocation(lat, lng, myHeading);
-      }, 
-      err => {
-        console.error('Geolocation error:', err);
-        showStatus('Error getting location: ' + err.message, 'error');
-      }, 
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
-    );
-  } else {
-    showStatus('Location access not granted. Showing friends only.', 'warning');
-  }
+    async function writeLocation(lat,lng,heading){
+      await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()});
+    }
 
-  // Compass tracking - only if permission granted
-  if (compassPermissionGranted) {
-    window.addEventListener('deviceorientation', e => {
+    window.addEventListener('beforeunload', async()=>{
+      await supabase.from('locations').delete().eq('user_id',userId);
+    });
+
+    // Subscribe to updates
+    supabase.channel('locations_channel')
+      .on('postgres_changes',{event:'*',schema:'public',table:'locations'},payload=>{
+        if (payload.new) {
+          updateFriendMarker(payload.new);
+        }
+      })
+      .subscribe();
+
+    // GPS
+    navigator.geolocation.watchPosition(pos=>{
+      const lat=pos.coords.latitude, lng=pos.coords.longitude;
+      updateMyMarker(lat,lng);
+      writeLocation(lat,lng,myHeading);
+    }, err=>console.error(err), {enableHighAccuracy:true, maximumAge:0, timeout:30000});
+
+    // Compass (Android + iOS)
+    window.addEventListener('deviceorientation', e=>{
       let heading;
-      if(typeof e.webkitCompassHeading !== 'undefined'){ // iOS
+      if(typeof e.webkitCompassHeading!=='undefined'){ // iOS
         heading = e.webkitCompassHeading;
-      } else if(e.alpha != null){ // Android
+      } else if(e.alpha!=null){ // Android
         heading = 360 - e.alpha; // convert to compass bearing
       }
-      
-      if(heading != null){
+      if(heading!=null){
         myHeading = heading;
         if(myMarker){
-          const lat = myMarker.getLatLng().lat;
-          const lng = myMarker.getLatLng().lng;
-          const distance = 1000000;
-          const rad = deg2rad(myHeading);
+          const lat=myMarker.getLatLng().lat, lng=myMarker.getLatLng().lng;
+          const distance=1000000;
+          const rad=deg2rad(myHeading);
           const lat2 = lat + (distance/111111) * Math.cos(rad);
           const lng2 = lng + (distance/111111) * Math.sin(rad);
           compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
@@ -580,26 +321,18 @@ function startTrackingApp() {
         }
       }
     });
-  } else {
-    showStatus('Compass access not granted. Using default direction.', 'warning');
-    // Set a default direction (North)
-    myHeading = 0;
+
+    // Poll + cleanup
+    setInterval(async()=>{
+      const {data,error}=await supabase.from('locations').select('*');
+      if(data) data.forEach(d=>updateFriendMarker(d));
+      const cutoff=new Date(Date.now()-30000).toISOString();
+      await supabase.from('locations').delete().lt('updated_at',cutoff);
+    },1000);
+
   }
 
-  // Poll for updates and cleanup old entries
-  setInterval(async() => {
-    try {
-      const {data, error} = await supabase.from('locations').select('*');
-      if(data) data.forEach(d => updateFriendMarker(d));
-      
-      // Clean up old entries (older than 30 seconds)
-      const cutoff = new Date(Date.now()-30000).toISOString();
-      await supabase.from('locations').delete().lt('updated_at', cutoff);
-    } catch (error) {
-      console.error('Error polling database:', error);
-    }
-  }, 1000);
-}
+});
 </script>
 </body>
 </html>
