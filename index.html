@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
 html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; background:#f5f5f5; }
-#map { height: 100%; width: 100%; display:none; border-radius:10px; }
+#map { height: 100%; width: 100%; display:none; }
 #startButton {
   position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
   padding:18px 28px; font-size:18px; z-index:1000;
@@ -15,14 +15,15 @@ html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; background
   box-shadow:0 4px 12px rgba(0,0,0,0.25);
 }
 #arrowUI {
-  position:absolute; top:20px; left:50%; transform:translateX(-50%);
+  position:absolute; top:15px; left:50%; transform:translateX(-50%);
   z-index:1000; background:rgba(255,255,255,0.95); border-radius:10px;
   padding:12px 18px; text-align:center; font-weight:bold; font-size:16px;
   box-shadow:0 4px 12px rgba(0,0,0,0.2);
   display:none;
 }
 #arrowImage {
-  width:60px; height:60px; display:block; margin:0 auto 5px; transition: transform 0.1s linear;
+  width:60px; height:60px; display:block; margin:0 auto 5px;
+  transform-origin: 50% 50%; transition: transform 0.1s linear;
 }
 #distance { font-size:18px; }
 </style>
@@ -37,7 +38,6 @@ html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; background
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
@@ -49,8 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const distanceEl = document.getElementById('distance');
 
   startButton.addEventListener('click', async () => {
-
-    // Request compass permission on iOS
+    // Ask iOS for motion/compass permission
     if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
       try {
         const resp = await DeviceOrientationEvent.requestPermission();
@@ -58,19 +57,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (e) { console.error(e); return; }
     }
 
-    // Request geolocation
     if (!navigator.geolocation) { alert('Geolocation not supported'); return; }
 
     startButton.style.display = 'none';
     document.getElementById('map').style.display = 'block';
     arrowUI.style.display = 'block';
 
+    // Supabase setup
     const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
+    const supabaseKey = 'YOUR_SUPABASE_KEY';
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     let userId = localStorage.getItem('friendtrack_userId');
-    if (!userId) { userId = 'user-' + Math.floor(Math.random() * 1000000); localStorage.setItem('friendtrack_userId', userId); }
+    if (!userId) {
+      userId = 'user-' + Math.floor(Math.random() * 1000000);
+      localStorage.setItem('friendtrack_userId', userId);
+    }
 
     const map = L.map('map').setView([0, 0], 2);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -79,12 +81,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).addTo(map);
 
     let myMarker = null;
-    let positions = [];
     let myHeading = 0;
-    let selectedFriend = null;
-    let friendMarkers = {};
     let compassLine = null;
     let firstUpdate = true;
+    let friendMarkers = {};
+    let selectedFriend = null;
 
     function deg2rad(d){ return d*Math.PI/180; }
     function rad2deg(r){ return r*180/Math.PI; }
@@ -99,37 +100,40 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function bearing(lat1, lon1, lat2, lon2){
       const y = Math.sin(deg2rad(lon2-lon1))*Math.cos(deg2rad(lat2));
-      const x = Math.cos(deg2rad(lat1))*Math.sin(deg2rad(lat2))-
+      const x = Math.cos(deg2rad(lat1))*Math.sin(deg2rad(lat2)) -
                 Math.sin(deg2rad(lat1))*Math.cos(deg2rad(lat2))*Math.cos(deg2rad(lon2-lon1));
       return (rad2deg(Math.atan2(y,x))+360)%360;
     }
 
-    function getInfiniteLine(lat, lng, heading){
-      const rad = (360 - heading) * Math.PI / 180;
-      const huge = 1000000;
-      return [lat + huge*Math.cos(rad), lng + huge*Math.sin(rad)];
-    }
+    function updateMyMarker(lat, lng){
+      if(!myMarker){
+        myMarker = L.circleMarker([lat,lng], {
+          radius:10, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:0.9
+        }).addTo(map);
+      } else {
+        myMarker.setLatLng([lat,lng]);
+      }
 
-    function updateMyMarker(lat,lng){
-      positions.push([lat,lng]); if(positions.length>10) positions.shift();
-      const avgLat = positions.reduce((a,b)=>a+b[0],0)/positions.length;
-      const avgLng = positions.reduce((a,b)=>a+b[1],0)/positions.length;
+      if(firstUpdate){ map.setView([lat,lng], 16); firstUpdate=false; }
 
-      if(!myMarker) myMarker = L.circleMarker([avgLat,avgLng], {radius:8,color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:0.9, weight:2}).addTo(map);
-      else myMarker.setLatLng([avgLat,avgLng]);
+      // Update direction line (infinite)
+      const distance = 1000000; // huge distance for "infinite" line
+      const rad = deg2rad(myHeading);
+      const lat2 = lat + (distance/111111) * Math.cos(rad); // approx conversion meters->degrees
+      const lng2 = lng + (distance/111111) * Math.sin(rad);
 
-      if(firstUpdate){ map.setView([avgLat, avgLng], 16); firstUpdate=false; }
+      if(!compassLine){
+        compassLine = L.polyline([[lat,lng],[lat2,lng2]], {color:'#1a73e8',weight:3}).addTo(map);
+      } else {
+        compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
+      }
 
-      const [lat2,lng2] = getInfiniteLine(avgLat, avgLng, myHeading);
-      if(!compassLine) compassLine = L.polyline([[avgLat, avgLng], [lat2, lng2]], {color:'#1a73e8',weight:3}).addTo(map);
-      else compassLine.setLatLngs([[avgLat, avgLng], [lat2, lng2]]);
-
+      // Arrow to friend
       if(selectedFriend){
-        const fLat = selectedFriend.lat, fLng = selectedFriend.lng;
-        const targetBearing = bearing(avgLat, avgLng, fLat, fLng);
+        const targetBearing = bearing(lat, lng, selectedFriend.lat, selectedFriend.lng);
         const diff = (targetBearing - myHeading + 360) % 360;
         arrowImage.style.transform = `rotate(${diff}deg)`;
-        const dist = haversine(avgLat, avgLng, fLat, fLng);
+        const dist = haversine(lat, lng, selectedFriend.lat, selectedFriend.lng);
         distanceEl.textContent = dist>1000 ? (dist/1000).toFixed(2)+' km' : Math.round(dist)+' m';
       }
     }
@@ -138,40 +142,62 @@ document.addEventListener('DOMContentLoaded', async () => {
       if(data.user_id===userId) return;
       const pos=[data.lat,data.lng];
       if(!friendMarkers[data.user_id]){
-        friendMarkers[data.user_id] = L.circleMarker(pos,{radius:8,color:'#e81a1a',fillColor:'#e81a1a',fillOpacity:0.9,weight:2}).addTo(map);
-        friendMarkers[data.user_id].on('click',()=>{ selectedFriend = data; });
-      } else friendMarkers[data.user_id].setLatLng(pos);
-      if(selectedFriend && selectedFriend.user_id===data.user_id) selectedFriend = data;
+        friendMarkers[data.user_id] = L.circleMarker(pos,{
+          radius:8,color:'#e81a1a',fillColor:'#e81a1a',fillOpacity:0.9
+        }).addTo(map);
+        friendMarkers[data.user_id].on('click',()=>{ selectedFriend=data; });
+      } else {
+        friendMarkers[data.user_id].setLatLng(pos);
+      }
+      if(selectedFriend && selectedFriend.user_id===data.user_id) selectedFriend=data;
     }
 
-    async function writeLocation(lat,lng,heading){ await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()}); }
+    async function writeLocation(lat,lng,heading){
+      await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()});
+    }
 
-    window.addEventListener('beforeunload', async()=>{ await supabase.from('locations').delete().eq('user_id',userId); });
+    window.addEventListener('beforeunload', async()=>{
+      await supabase.from('locations').delete().eq('user_id',userId);
+    });
 
-    const channel = supabase.channel('locations_channel')
-      .on('postgres_changes',{event:'*',schema:'public',table:'locations'},payload=>{ updateFriendMarker(payload.new); })
+    // Subscribe to updates
+    supabase.channel('locations_channel')
+      .on('postgres_changes',{event:'*',schema:'public',table:'locations'},payload=>{
+        updateFriendMarker(payload.new);
+      })
       .subscribe();
 
+    // GPS
     navigator.geolocation.watchPosition(pos=>{
       const lat=pos.coords.latitude, lng=pos.coords.longitude;
-      updateMyMarker(lat,lng); writeLocation(lat,lng,myHeading);
+      updateMyMarker(lat,lng);
+      writeLocation(lat,lng,myHeading);
     }, err=>console.error(err), {enableHighAccuracy:true, maximumAge:0, timeout:30000});
 
+    // Compass (Android + iOS)
     window.addEventListener('deviceorientation', e=>{
-      let heading = e.alpha;
-      if(typeof e.webkitCompassHeading!=='undefined') heading=e.webkitCompassHeading;
-      if(heading!=null){ myHeading=heading;
+      let heading;
+      if(typeof e.webkitCompassHeading!=='undefined'){ // iOS
+        heading = e.webkitCompassHeading;
+      } else if(e.alpha!=null){ // Android
+        heading = 360 - e.alpha; // convert to compass bearing
+      }
+      if(heading!=null){
+        myHeading = heading;
         if(myMarker){
-          const lat=myMarker.getLatLng().lat;
-          const lng=myMarker.getLatLng().lng;
-          const [lat2,lng2]=getInfiniteLine(lat,lng,myHeading);
-          if(compassLine) compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
+          const lat=myMarker.getLatLng().lat, lng=myMarker.getLatLng().lng;
+          const distance=1000000;
+          const rad=deg2rad(myHeading);
+          const lat2 = lat + (distance/111111) * Math.cos(rad);
+          const lng2 = lng + (distance/111111) * Math.sin(rad);
+          compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
         }
       }
     });
 
+    // Poll + cleanup
     setInterval(async()=>{
-      const {data,error}=await supabase.from('locations').select('*'); if(error)console.error(error);
+      const {data,error}=await supabase.from('locations').select('*');
       if(data) data.forEach(d=>updateFriendMarker(d));
       const cutoff=new Date(Date.now()-30000).toISOString();
       await supabase.from('locations').delete().lt('updated_at',cutoff);
