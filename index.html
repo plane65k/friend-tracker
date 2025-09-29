@@ -94,11 +94,13 @@
     let currentHeading = 0;
     let targetFriend = null;
 
-    // Request location permission
+    // Request location + track
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(
         async (pos) => {
-          const { latitude, longitude, accuracy } = pos.coords;
+          const { latitude, longitude } = pos.coords;
+
+          // Draw self
           if (!userMarker) {
             userMarker = L.circleMarker([latitude, longitude], {
               radius: 10,
@@ -111,13 +113,14 @@
             userMarker.setLatLng([latitude, longitude]);
           }
 
+          // Update heading line
           if (headingLine) {
             map.removeLayer(headingLine);
           }
           const dest = computeDestinationPoint(
             { lat: latitude, lng: longitude },
             currentHeading,
-            20000000 // ~20,000km = half Earth circumference
+            20000000 // ~20,000 km = infinite line
           );
           headingLine = L.polyline(
             [
@@ -127,6 +130,7 @@
             { color: "blue", weight: 2 }
           ).addTo(map);
 
+          // Push location to Supabase
           await supabase.from("locations").upsert({
             id: userId,
             lat: latitude,
@@ -141,15 +145,15 @@
       alert("Geolocation not supported");
     }
 
-    // Handle compass (iOS + Android)
+    // Handle compass heading
     function handleOrientation(event) {
       let heading;
       if (event.webkitCompassHeading !== undefined) {
         heading = event.webkitCompassHeading; // iOS
-      } else {
+      } else if (event.alpha !== null) {
         heading = 360 - event.alpha; // Android
       }
-      currentHeading = heading;
+      if (heading !== undefined) currentHeading = heading;
     }
 
     if (window.DeviceOrientationEvent) {
@@ -168,7 +172,7 @@
       }
     }
 
-    // Load friends
+    // Load + render friends
     async function loadFriends() {
       const { data } = await supabase.from("locations").select("*");
       renderFriends(data);
@@ -178,6 +182,7 @@
       document.getElementById("friendList").innerHTML = "";
       rows.forEach((row) => {
         if (row.id === userId) return;
+
         if (!friends[row.id]) {
           friends[row.id] = L.circleMarker([row.lat, row.lng], {
             radius: 10,
@@ -188,6 +193,7 @@
         } else {
           friends[row.id].setLatLng([row.lat, row.lng]);
         }
+
         const btn = document.createElement("button");
         btn.className = "friend-btn";
         btn.innerText = row.id;
@@ -196,7 +202,7 @@
       });
     }
 
-    // Guide arrow update
+    // Update guide arrow
     setInterval(() => {
       if (targetFriend && userMarker) {
         const userLatLng = userMarker.getLatLng();
@@ -208,6 +214,7 @@
 
         const arrow = document.getElementById("arrow");
         arrow.style.transform = `translateX(-50%) rotate(${diff}deg)`;
+
         const dist = haversineDistance(
           [userLatLng.lat, userLatLng.lng],
           [targetFriend.lat, targetFriend.lng]
