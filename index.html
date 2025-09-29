@@ -239,14 +239,14 @@ html, body {
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Orientation Warning */
-#orientationWarning {
+/* Android Calibration Overlay */
+#androidCalibration {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(0, 0, 0, 0.95);
   z-index: 3000;
   display: none;
   flex-direction: column;
@@ -258,15 +258,43 @@ html, body {
   padding: 20px;
 }
 
-#orientationWarning h2 {
-  font-size: 24px;
-  margin-bottom: 20px;
+#calibrationContent {
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
 }
 
-#orientationWarning p {
-  font-size: 16px;
-  opacity: 0.8;
-  max-width: 300px;
+#calibrationArrow {
+  width: 120px;
+  height: 120px;
+  fill: none;
+  stroke: #4CD964;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 20px rgba(76, 217, 100, 0.8));
+  animation: calibrationPulse 2s ease-in-out infinite;
+}
+
+#calibrateButton {
+  padding: 15px 30px;
+  font-size: 18px;
+  background: #4CD964;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+#calibrateButton:hover {
+  background: #3DB954;
+  transform: scale(1.05);
+}
+
+#calibrationText {
+  font-size: 18px;
+  line-height: 1.5;
 }
 
 /* Super Smooth Apple-like Animations */
@@ -340,6 +368,17 @@ html, body {
   50% {
     transform: scale(1.05);
     filter: drop-shadow(0 0 25px rgba(76, 217, 100, 1));
+  }
+}
+
+@keyframes calibrationPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 20px rgba(76, 217, 100, 0.8));
+  }
+  50% {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 30px rgba(76, 217, 100, 1));
   }
 }
 
@@ -504,10 +543,19 @@ html, body {
   </div>
 </div>
 
-<!-- Orientation Warning -->
-<div id="orientationWarning">
-  <h2>Hold Upright</h2>
-  <p>Please hold your phone upright in portrait mode for accurate compass readings.</p>
+<!-- Android Calibration Overlay -->
+<div id="androidCalibration">
+  <div id="calibrationContent">
+    <svg id="calibrationArrow" viewBox="0 0 100 100">
+      <path d="M 50,20 L 60,40 L 55,40 L 55,70 L 45,70 L 45,40 L 40,40 Z" />
+    </svg>
+    <div id="calibrationText">
+      <h2>Calibrate Compass</h2>
+      <p>Please point your phone directly at magnetic North and click "Calibrate"</p>
+      <p>This helps us provide accurate directions to your friends</p>
+    </div>
+    <button id="calibrateButton">Calibrate Now</button>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -531,7 +579,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sweepPath = document.getElementById('sweepPath');
   const friendName = document.getElementById('friendName');
   const friendDistance = document.getElementById('friendDistance');
-  const orientationWarning = document.getElementById('orientationWarning');
+  const androidCalibration = document.getElementById('androidCalibration');
+  const calibrateButton = document.getElementById('calibrateButton');
+  const calibrationArrow = document.getElementById('calibrationArrow');
 
   // Start enhanced radar sweep animation
   sweepPath.style.animation = 'sweep 3s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite';
@@ -544,6 +594,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       precisionArrow.style.display = 'none';
       directionArrow.style.display = 'block';
     }, 400);
+  });
+
+  // Detect if user is on Android
+  function isAndroid() {
+    return /android/i.test(navigator.userAgent);
+  }
+
+  let calibrationOffset = 0;
+  let isCalibrated = false;
+
+  calibrateButton.addEventListener('click', () => {
+    // Store the current alpha value as our calibration offset
+    if (typeof lastAlpha !== 'undefined') {
+      // When user points north, alpha should be 0, so we set offset to current alpha
+      calibrationOffset = lastAlpha;
+      isCalibrated = true;
+      androidCalibration.style.display = 'none';
+      startTracking();
+    }
   });
 
   startButton.addEventListener('click', async () => {
@@ -559,10 +628,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const resp = await DeviceOrientationEvent.requestPermission();
         if (resp !== 'granted') { 
           alert('Compass permission denied. Direction features will not work.'); 
+        } else {
+          // iOS users can proceed directly
+          startTracking();
         }
       } catch (e) { 
         console.error(e); 
         alert('Error requesting compass permission: ' + e.message);
+      }
+    } else {
+      // Android users need calibration
+      if (isAndroid()) {
+        // Show calibration screen for Android
+        androidCalibration.style.display = 'flex';
+      } else {
+        // Other non-iOS devices can proceed
+        startTracking();
       }
     }
 
@@ -574,8 +655,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Request location permission
     navigator.geolocation.getCurrentPosition(
       () => {
-        // Location permission granted
-        startTracking();
+        // Location permission granted - handled in startTracking
       },
       (error) => {
         alert('Location permission denied or error: ' + error.message);
@@ -584,6 +664,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       { enableHighAccuracy: true }
     );
   });
+
+  let lastAlpha = 0;
 
   function startTracking() {
     // Smooth transitions for UI elements
@@ -666,32 +748,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       return (rad2deg(Math.atan2(y,x))+360)%360;
     }
 
-    function calculateHeadingFromOrientation(e) {
+    function calculateHeading(e) {
       let heading = 0;
       
-      // Check if device is in portrait mode (vertical)
-      const isPortrait = Math.abs(e.beta) <= 45 && Math.abs(e.gamma) <= 45;
-      
-      if (!isPortrait) {
-        // Show orientation warning if phone is not vertical
-        orientationWarning.style.display = 'flex';
-        return myHeading; // Return last known heading
-      } else {
-        orientationWarning.style.display = 'none';
+      // Store alpha for calibration
+      if (e.alpha !== null) {
+        lastAlpha = e.alpha;
       }
 
       // iOS devices with webkitCompassHeading
       if (typeof e.webkitCompassHeading !== 'undefined') {
         heading = e.webkitCompassHeading;
       } 
-      // Android and other devices - use alpha for portrait mode
+      // Android and other devices
       else if (e.alpha !== null) {
-        // For portrait mode, use alpha directly as compass heading
-        heading = e.alpha;
-        
-        // Adjust for device orientation in portrait mode
-        if (e.gamma < 0) {
-          heading = (360 - heading) % 360;
+        if (isAndroid() && isCalibrated) {
+          // Use calibrated heading for Android
+          heading = (360 - (e.alpha - calibrationOffset)) % 360;
+        } else {
+          // Default calculation for non-calibrated devices
+          heading = 360 - e.alpha;
         }
       }
       
@@ -1003,9 +1079,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       writeLocation(lat,lng,myHeading);
     }, err=>console.error(err), {enableHighAccuracy:true, maximumAge:0, timeout:30000});
 
-    // Compass (Android + iOS) with vertical orientation support
+    // Compass (Android + iOS) with calibration support
     window.addEventListener('deviceorientation', e=>{
-      const heading = calculateHeadingFromOrientation(e);
+      const heading = calculateHeading(e);
       
       if(heading !== null){
         myHeading = heading;
