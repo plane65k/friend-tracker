@@ -3,47 +3,240 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Friend Tracker Compass Precise</title>
+<title>Friend Tracker with Navigation HUD</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
-html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; background:#f5f5f5; }
-#map { height: 100%; width: 100%; display:none; }
+html, body { 
+  height: 100%; 
+  margin: 0; 
+  font-family: Arial, sans-serif; 
+  background:#f5f5f5; 
+  overflow: hidden;
+}
+#map { 
+  height: 100%; 
+  width: 100%; 
+  display:none; 
+}
 #startButton {
-  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-  padding:18px 28px; font-size:18px; z-index:1000;
-  border-radius:12px; background:#1a73e8; color:white; border:none; cursor:pointer;
+  position:absolute; 
+  top:50%; 
+  left:50%; 
+  transform:translate(-50%,-50%);
+  padding:18px 28px; 
+  font-size:18px; 
+  z-index:1000;
+  border-radius:12px; 
+  background:#1a73e8; 
+  color:white; 
+  border:none; 
+  cursor:pointer;
   box-shadow:0 4px 12px rgba(0,0,0,0.25);
 }
 #arrowUI {
-  position:absolute; top:15px; left:50%; transform:translateX(-50%);
-  z-index:1000; background:rgba(255,255,255,0.95); border-radius:10px;
-  padding:12px 18px; text-align:center; font-weight:bold; font-size:16px;
+  position:absolute; 
+  top:15px; 
+  left:50%; 
+  transform:translateX(-50%);
+  z-index:1000; 
+  background:rgba(255,255,255,0.95); 
+  border-radius:10px;
+  padding:12px 18px; 
+  text-align:center; 
+  font-weight:bold; 
+  font-size:16px;
   box-shadow:0 4px 12px rgba(0,0,0,0.2);
   display:none;
 }
 #arrowImage {
-  width:60px; height:60px; display:block; margin:0 auto 5px;
-  transform-origin: 50% 50%; transition: transform 0.1s linear;
+  width:60px; 
+  height:60px; 
+  display:block; 
+  margin:0 auto 5px;
+  transform-origin: 50% 50%; 
+  transition: transform 0.1s linear;
 }
-#distance { font-size:18px; }
+#distance { 
+  font-size:18px; 
+}
 #friendsList {
-  position:absolute; top:15px; right:15px; z-index:1000;
-  background:rgba(255,255,255,0.95); border-radius:10px;
-  padding:12px; max-height:300px; overflow-y:auto;
-  box-shadow:0 4px 12px rgba(0,0,0,0.2); display:none;
+  position:absolute; 
+  top:15px; 
+  right:15px; 
+  z-index:1000;
+  background:rgba(255,255,255,0.95); 
+  border-radius:10px;
+  padding:12px; 
+  max-height:300px; 
+  overflow-y:auto;
+  box-shadow:0 4px 12px rgba(0,0,0,0.2); 
+  display:none;
   min-width:200px;
 }
 .friend-item {
-  padding:8px 12px; margin:5px 0; border-radius:6px;
-  cursor:pointer; transition:background 0.2s;
+  padding:8px 12px; 
+  margin:5px 0; 
+  border-radius:6px;
+  cursor:pointer; 
+  transition:background 0.2s;
 }
-.friend-item:hover { background:#f0f0f0; }
+.friend-item:hover { 
+  background:#f0f0f0; 
+}
 .friend-item.selected {
-  background:#1a73e8; color:white;
+  background:#1a73e8; 
+  color:white;
 }
 #friendsHeader {
-  font-weight:bold; margin-bottom:8px; padding-bottom:8px;
+  font-weight:bold; 
+  margin-bottom:8px; 
+  padding-bottom:8px;
   border-bottom:1px solid #e0e0e0;
+}
+
+/* Navigation HUD Styles */
+#navigationHUD {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #0A0A0A;
+  z-index: 2000;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+#hudContent {
+  width: 100%;
+  height: 60%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+#radarSweep {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+#sweepPath {
+  fill: none;
+  stroke: rgba(128, 128, 128, 0.7);
+  stroke-width: 2;
+  stroke-dasharray: 5, 5;
+}
+
+#directionArrow {
+  width: 80px;
+  height: 60px;
+  fill: none;
+  stroke: #FFFFFF;
+  stroke-width: 3;
+  opacity: 0.2;
+  transform-origin: center;
+  transition: transform 0.3s ease-out;
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+}
+
+#distanceIndicator {
+  font-size: 48px;
+  font-weight: 800;
+  font-stretch: condensed;
+  margin: 20px 0 10px 0;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+#distanceUnit {
+  font-size: 18px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+#directionText {
+  font-size: 20px;
+  font-weight: 400;
+  margin-top: 15px;
+  text-align: center;
+  min-height: 30px;
+}
+
+#closeHUD {
+  position: absolute;
+  top: 40px;
+  right: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  font-size: 24px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2001;
+}
+
+/* Animations */
+@keyframes sweep {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 0.7;
+  }
+  100% {
+    stroke-dashoffset: -100;
+    opacity: 1;
+  }
+}
+
+@keyframes arrowBob {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes distancePulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes textSlide {
+  0% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.arrow-aligned {
+  opacity: 1 !important;
+  filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.8)) !important;
+}
+
+.arrow-misaligned {
+  animation: arrowBob 0.5s infinite;
 }
 </style>
 </head>
@@ -59,6 +252,23 @@ html, body { height: 100%; margin: 0; font-family: Arial, sans-serif; background
   <div id="friendsHeader">Select a Friend</div>
 </div>
 
+<!-- Navigation HUD -->
+<div id="navigationHUD">
+  <button id="closeHUD">×</button>
+  <div id="hudContent">
+    <svg id="radarSweep" viewBox="0 0 100 100">
+      <path id="sweepPath" d="M 80,50 A 30,30 0 0 1 20,50" />
+    </svg>
+    <svg id="directionArrow" viewBox="0 0 100 100">
+      <path d="M 30,20 L 50,60 L 70,20 L 60,20 L 60,80 L 40,80 L 40,20 Z" />
+    </svg>
+    <div id="distanceIndicator">
+      <span id="distanceValue">0</span><span id="distanceUnit">ft</span>
+    </div>
+    <div id="directionText">Select a friend to navigate</div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
@@ -70,6 +280,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const arrowImage = document.getElementById('arrowImage');
   const distanceEl = document.getElementById('distance');
   const friendsList = document.getElementById('friendsList');
+  const navigationHUD = document.getElementById('navigationHUD');
+  const closeHUD = document.getElementById('closeHUD');
+  const directionArrow = document.getElementById('directionArrow');
+  const distanceValue = document.getElementById('distanceValue');
+  const distanceUnit = document.getElementById('distanceUnit');
+  const directionText = document.getElementById('directionText');
+  const sweepPath = document.getElementById('sweepPath');
+
+  // Start radar sweep animation
+  sweepPath.style.animation = 'sweep 2s ease-in-out infinite';
+
+  closeHUD.addEventListener('click', () => {
+    navigationHUD.style.display = 'none';
+  });
 
   startButton.addEventListener('click', async () => {
     // Ask iOS for motion/compass permission
@@ -182,6 +406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if(selectedFriend){
         updateRouteToFriend(lat, lng);
         updateArrowDirection(lat, lng);
+        updateHUD(lat, lng);
       }
     }
 
@@ -216,6 +441,72 @@ document.addEventListener('DOMContentLoaded', async () => {
       distanceEl.textContent = dist>1000 ? (dist/1000).toFixed(2)+' km' : Math.round(dist)+' m';
     }
 
+    function updateHUD(myLat, myLng) {
+      if (!selectedFriend) return;
+      
+      const targetBearing = bearing(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
+      const diff = (targetBearing - myHeading + 360) % 360;
+      
+      // Rotate the arrow
+      directionArrow.style.transform = `rotate(${diff}deg)`;
+      
+      // Update distance
+      const dist = haversine(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
+      const distFeet = Math.round(dist * 3.28084); // Convert meters to feet
+      
+      // Pulse animation on distance update
+      distanceValue.style.animation = 'none';
+      setTimeout(() => {
+        distanceValue.style.animation = 'distancePulse 0.3s ease';
+      }, 10);
+      
+      distanceValue.textContent = distFeet;
+      distanceUnit.textContent = 'ft';
+      
+      // Update direction text
+      let directionDescription = '';
+      if (diff < 15 || diff > 345) {
+        directionDescription = 'straight ahead';
+        directionArrow.classList.add('arrow-aligned');
+        directionArrow.classList.remove('arrow-misaligned');
+      } else if (diff >= 15 && diff < 75) {
+        directionDescription = 'slightly to your right';
+        directionArrow.classList.remove('arrow-aligned');
+        directionArrow.classList.add('arrow-misaligned');
+      } else if (diff >= 75 && diff < 105) {
+        directionDescription = 'to your right';
+        directionArrow.classList.remove('arrow-aligned');
+        directionArrow.classList.add('arrow-misaligned');
+      } else if (diff >= 105 && diff < 165) {
+        directionDescription = 'behind to your right';
+        directionArrow.classList.remove('arrow-aligned');
+        directionArrow.classList.add('arrow-misaligned');
+      } else if (diff >= 165 && diff < 195) {
+        directionDescription = 'behind you';
+        directionArrow.classList.remove('arrow-aligned');
+        directionArrow.classList.add('arrow-misaligned');
+      } else if (diff >= 195 && diff < 255) {
+        directionDescription = 'behind to your left';
+        directionArrow.classList.remove('arrow-aligned');
+        directionArrow.classList.add('arrow-misaligned');
+      } else if (diff >= 255 && diff < 285) {
+        directionDescription = 'to your left';
+        directionArrow.classList.remove('arrow-aligned');
+        directionArrow.classList.add('arrow-misaligned');
+      } else {
+        directionDescription = 'slightly to your left';
+        directionArrow.classList.remove('arrow-aligned');
+        directionArrow.classList.add('arrow-misaligned');
+      }
+      
+      // Animate text change
+      directionText.style.animation = 'none';
+      setTimeout(() => {
+        directionText.style.animation = 'textSlide 0.4s ease-out';
+        directionText.textContent = directionDescription;
+      }, 10);
+    }
+
     function updateFriendMarker(data){
       if(data.user_id===userId) return;
       
@@ -247,6 +538,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const myPos = myMarker.getLatLng();
           updateRouteToFriend(myPos.lat, myPos.lng);
           updateArrowDirection(myPos.lat, myPos.lng);
+          updateHUD(myPos.lat, myPos.lng);
         }
       }
     }
@@ -281,11 +573,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         friendListItems[data.user_id].classList.add('selected');
       }
       
+      // Show navigation HUD
+      navigationHUD.style.display = 'flex';
+      
       // Update route and arrow direction
       if (myMarker) {
         const myPos = myMarker.getLatLng();
         updateRouteToFriend(myPos.lat, myPos.lng);
         updateArrowDirection(myPos.lat, myPos.lng);
+        updateHUD(myPos.lat, myPos.lng);
       }
       
       // Center map on selected friend
@@ -342,6 +638,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           // Update arrow direction if a friend is selected
           if(selectedFriend){
             updateArrowDirection(lat, lng);
+            updateHUD(lat, lng);
           }
         }
       }
