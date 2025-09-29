@@ -239,6 +239,36 @@ html, body {
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
+/* Orientation Warning */
+#orientationWarning {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 3000;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  text-align: center;
+  padding: 20px;
+}
+
+#orientationWarning h2 {
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+
+#orientationWarning p {
+  font-size: 16px;
+  opacity: 0.8;
+  max-width: 300px;
+}
+
 /* Super Smooth Apple-like Animations */
 @keyframes hudSlideIn {
   0% {
@@ -420,6 +450,16 @@ html, body {
 #friendsList::-webkit-scrollbar-thumb:hover {
   background: rgba(0,0,0,0.3);
 }
+
+/* Map rendering fixes */
+.leaflet-container {
+  background: #f5f5f5;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+.leaflet-control-attribution {
+  font-size: 11px;
+}
 </style>
 </head>
 <body>
@@ -464,6 +504,12 @@ html, body {
   </div>
 </div>
 
+<!-- Orientation Warning -->
+<div id="orientationWarning">
+  <h2>Hold Upright</h2>
+  <p>Please hold your phone upright in portrait mode for accurate compass readings.</p>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
@@ -485,6 +531,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sweepPath = document.getElementById('sweepPath');
   const friendName = document.getElementById('friendName');
   const friendDistance = document.getElementById('friendDistance');
+  const orientationWarning = document.getElementById('orientationWarning');
 
   // Start enhanced radar sweep animation
   sweepPath.style.animation = 'sweep 3s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite';
@@ -572,11 +619,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.setItem('friendtrack_userId', userId);
     }
 
-    const map = L.map('map').setView([0, 0], 2);
+    // Initialize map with proper rendering
+    const map = L.map('map', {
+      preferCanvas: true,
+      zoomControl: true,
+      attributionControl: true
+    }).setView([0, 0], 2);
+    
+    // Add tile layer with error handling
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+      attribution: '&copy; OpenStreetMap contributors',
+      detectRetina: true,
+      updateWhenIdle: true
     }).addTo(map);
+
+    // Force map to render properly
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
 
     let myMarker = null;
     let myHeading = 0;
@@ -605,6 +666,38 @@ document.addEventListener('DOMContentLoaded', async () => {
       return (rad2deg(Math.atan2(y,x))+360)%360;
     }
 
+    function calculateHeadingFromOrientation(e) {
+      let heading = 0;
+      
+      // Check if device is in portrait mode (vertical)
+      const isPortrait = Math.abs(e.beta) <= 45 && Math.abs(e.gamma) <= 45;
+      
+      if (!isPortrait) {
+        // Show orientation warning if phone is not vertical
+        orientationWarning.style.display = 'flex';
+        return myHeading; // Return last known heading
+      } else {
+        orientationWarning.style.display = 'none';
+      }
+
+      // iOS devices with webkitCompassHeading
+      if (typeof e.webkitCompassHeading !== 'undefined') {
+        heading = e.webkitCompassHeading;
+      } 
+      // Android and other devices - use alpha for portrait mode
+      else if (e.alpha !== null) {
+        // For portrait mode, use alpha directly as compass heading
+        heading = e.alpha;
+        
+        // Adjust for device orientation in portrait mode
+        if (e.gamma < 0) {
+          heading = (360 - heading) % 360;
+        }
+      }
+      
+      return heading;
+    }
+
     function updateMyMarker(lat, lng){
       if(!myMarker){
         myMarker = L.circleMarker([lat,lng], {
@@ -623,6 +716,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       if(firstUpdate){ 
         map.setView([lat,lng], 16); 
         firstUpdate=false; 
+        // Force map re-render after first location
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 500);
       }
 
       // Update direction line (infinite)
@@ -906,15 +1003,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       writeLocation(lat,lng,myHeading);
     }, err=>console.error(err), {enableHighAccuracy:true, maximumAge:0, timeout:30000});
 
-    // Compass (Android + iOS)
+    // Compass (Android + iOS) with vertical orientation support
     window.addEventListener('deviceorientation', e=>{
-      let heading;
-      if(typeof e.webkitCompassHeading!=='undefined'){ // iOS
-        heading = e.webkitCompassHeading;
-      } else if(e.alpha!=null){ // Android
-        heading = 360 - e.alpha; // convert to compass bearing
-      }
-      if(heading!=null){
+      const heading = calculateHeadingFromOrientation(e);
+      
+      if(heading !== null){
         myHeading = heading;
         if(myMarker){
           const lat=myMarker.getLatLng().lat, lng=myMarker.getLatLng().lng;
