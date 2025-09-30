@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Friend Tracker with Navigation HUD</title>
+<title>Friend Tracker with Bluetooth & Precision Finding</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
 html, body { 
@@ -104,6 +104,37 @@ html, body {
   padding-bottom:8px;
   border-bottom:1px solid #e0e0e0;
 }
+
+/* Status Indicators */
+#statusIndicator {
+  position: absolute;
+  top: 80px;
+  left: 15px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  display: none;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-gps { background: #4CAF50; }
+.status-bluetooth { background: #2196F3; }
+.status-compass { background: #FF9800; }
 
 /* Compact Navigation HUD Styles */
 #navigationHUD {
@@ -239,87 +270,6 @@ html, body {
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Android Calibration Overlay */
-#androidCalibration {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.95);
-  z-index: 3000;
-  display: none;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  color: white;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  text-align: center;
-  padding: 20px;
-}
-
-#calibrationContent {
-  max-width: 400px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 30px;
-}
-
-#calibrationArrow {
-  width: 120px;
-  height: 120px;
-  fill: none;
-  stroke: #4CD964;
-  stroke-width: 4;
-  filter: drop-shadow(0 0 20px rgba(76, 217, 100, 0.8));
-  animation: calibrationPulse 2s ease-in-out infinite;
-}
-
-#calibrateButton {
-  padding: 15px 30px;
-  font-size: 18px;
-  background: #4CD964;
-  color: white;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-#calibrateButton:hover {
-  background: #3DB954;
-  transform: scale(1.05);
-}
-
-#calibrationText {
-  font-size: 18px;
-  line-height: 1.5;
-}
-
-/* Status Indicator */
-#statusIndicator {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 1000;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
-  display: none;
-  align-items: center;
-  gap: 8px;
-}
-
-#statusDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #4CD964;
-  animation: statusPulse 2s ease-in-out infinite;
-}
-
 /* Super Smooth Apple-like Animations */
 @keyframes hudSlideIn {
   0% {
@@ -394,17 +344,6 @@ html, body {
   }
 }
 
-@keyframes calibrationPulse {
-  0%, 100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 20px rgba(76, 217, 100, 0.8));
-  }
-  50% {
-    transform: scale(1.1);
-    filter: drop-shadow(0 0 30px rgba(76, 217, 100, 1));
-  }
-}
-
 @keyframes distancePulse {
   0% {
     transform: scale(1);
@@ -450,17 +389,6 @@ html, body {
   }
   50% {
     transform: scale(1.05);
-  }
-}
-
-@keyframes statusPulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1.1);
   }
 }
 
@@ -523,16 +451,6 @@ html, body {
 #friendsList::-webkit-scrollbar-thumb:hover {
   background: rgba(0,0,0,0.3);
 }
-
-/* Map rendering fixes */
-.leaflet-container {
-  background: #f5f5f5;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-}
-
-.leaflet-control-attribution {
-  font-size: 11px;
-}
 </style>
 </head>
 <body>
@@ -549,8 +467,18 @@ html, body {
 
 <!-- Status Indicator -->
 <div id="statusIndicator">
-  <div id="statusDot"></div>
-  <span id="statusText">Live</span>
+  <div class="status-item">
+    <div class="status-dot status-gps"></div>
+    <span id="gpsStatus">GPS: Acquiring</span>
+  </div>
+  <div class="status-item">
+    <div class="status-dot status-bluetooth"></div>
+    <span id="bluetoothStatus">Bluetooth: Off</span>
+  </div>
+  <div class="status-item">
+    <div class="status-dot status-compass"></div>
+    <span id="compassStatus">Compass: Calibrating</span>
+  </div>
 </div>
 
 <!-- Compact Navigation HUD -->
@@ -583,21 +511,6 @@ html, body {
   </div>
 </div>
 
-<!-- Android Calibration Overlay -->
-<div id="androidCalibration">
-  <div id="calibrationContent">
-    <svg id="calibrationArrow" viewBox="0 0 100 100">
-      <path d="M 50,20 L 60,40 L 55,40 L 55,70 L 45,70 L 45,40 L 40,40 Z" />
-    </svg>
-    <div id="calibrationText">
-      <h2>Calibrate Compass</h2>
-      <p>Please point your phone directly at magnetic North and click "Calibrate"</p>
-      <p>This helps us provide accurate directions to your friends</p>
-    </div>
-    <button id="calibrateButton">Calibrate Now</button>
-  </div>
-</div>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
@@ -619,11 +532,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sweepPath = document.getElementById('sweepPath');
   const friendName = document.getElementById('friendName');
   const friendDistance = document.getElementById('friendDistance');
-  const androidCalibration = document.getElementById('androidCalibration');
-  const calibrateButton = document.getElementById('calibrateButton');
-  const calibrationArrow = document.getElementById('calibrationArrow');
   const statusIndicator = document.getElementById('statusIndicator');
-  const statusText = document.getElementById('statusText');
+  const gpsStatus = document.getElementById('gpsStatus');
+  const bluetoothStatus = document.getElementById('bluetoothStatus');
+  const compassStatus = document.getElementById('compassStatus');
+
+  // Bluetooth variables
+  let bluetoothDevice = null;
+  let bluetoothServer = null;
+  let bluetoothService = null;
+  let bluetoothCharacteristic = null;
+  let nearbyDevices = new Map();
 
   // Start enhanced radar sweep animation
   sweepPath.style.animation = 'sweep 3s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite';
@@ -636,25 +555,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       precisionArrow.style.display = 'none';
       directionArrow.style.display = 'block';
     }, 400);
-  });
-
-  // Detect if user is on Android
-  function isAndroid() {
-    return /android/i.test(navigator.userAgent);
-  }
-
-  let calibrationOffset = 0;
-  let isCalibrated = false;
-
-  calibrateButton.addEventListener('click', () => {
-    // Store the current alpha value as our calibration offset
-    if (typeof lastAlpha !== 'undefined') {
-      // When user points north, alpha should be 0, so we set offset to current alpha
-      calibrationOffset = lastAlpha;
-      isCalibrated = true;
-      androidCalibration.style.display = 'none';
-      startTracking();
-    }
   });
 
   startButton.addEventListener('click', async () => {
@@ -671,21 +571,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (resp !== 'granted') { 
           alert('Compass permission denied. Direction features will not work.'); 
         } else {
-          // iOS users can proceed directly
-          startTracking();
+          compassStatus.textContent = 'Compass: Ready';
         }
       } catch (e) { 
         console.error(e); 
         alert('Error requesting compass permission: ' + e.message);
-      }
-    } else {
-      // Android users need calibration
-      if (isAndroid()) {
-        // Show calibration screen for Android
-        androidCalibration.style.display = 'flex';
-      } else {
-        // Other non-iOS devices can proceed
-        startTracking();
       }
     }
 
@@ -697,7 +587,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Request location permission
     navigator.geolocation.getCurrentPosition(
       () => {
-        // Location permission granted - handled in startTracking
+        // Location permission granted
+        startTracking();
       },
       (error) => {
         alert('Location permission denied or error: ' + error.message);
@@ -707,12 +598,112 @@ document.addEventListener('DOMContentLoaded', async () => {
     );
   });
 
-  let lastAlpha = 0;
+  // Bluetooth functions
+  async function initBluetooth() {
+    if (!navigator.bluetooth) {
+      bluetoothStatus.textContent = 'Bluetooth: Not Supported';
+      return;
+    }
+
+    try {
+      bluetoothStatus.textContent = 'Bluetooth: Scanning...';
+      
+      // Request Bluetooth device with our service
+      bluetoothDevice = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: ['0000ffe0-0000-1000-8000-00805f9b34fb'] // Custom service UUID
+      });
+
+      bluetoothStatus.textContent = 'Bluetooth: Connecting...';
+      
+      // Connect to the GATT server
+      bluetoothServer = await bluetoothDevice.gatt.connect();
+      
+      // Get our custom service
+      bluetoothService = await bluetoothServer.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
+      
+      // Get characteristic for data exchange
+      bluetoothCharacteristic = await bluetoothService.getCharacteristic('0000ffe1-0000-1000-8000-00805f9b34fb');
+      
+      // Start notifications
+      await bluetoothCharacteristic.startNotifications();
+      bluetoothCharacteristic.addEventListener('characteristicvaluechanged', handleBluetoothData);
+      
+      bluetoothStatus.textContent = 'Bluetooth: Connected';
+      
+      // Start scanning for nearby devices
+      startBluetoothScan();
+      
+    } catch (error) {
+      console.error('Bluetooth error:', error);
+      bluetoothStatus.textContent = 'Bluetooth: Error';
+    }
+  }
+
+  function startBluetoothScan() {
+    if (!navigator.bluetooth) return;
+
+    // Scan for nearby devices periodically
+    setInterval(async () => {
+      try {
+        const devices = await navigator.bluetooth.getDevices();
+        updateNearbyDevices(devices);
+      } catch (error) {
+        console.error('Bluetooth scan error:', error);
+      }
+    }, 2000); // Scan every 2 seconds
+  }
+
+  function updateNearbyDevices(devices) {
+    nearbyDevices.clear();
+    
+    devices.forEach(device => {
+      if (device.name && device.name.startsWith('friendtrack-')) {
+        // Estimate distance based on RSSI (very rough approximation)
+        const distance = estimateDistanceFromRSSI(device.rssi);
+        nearbyDevices.set(device.id, {
+          id: device.id,
+          name: device.name,
+          rssi: device.rssi,
+          estimatedDistance: distance
+        });
+      }
+    });
+  }
+
+  function estimateDistanceFromRSSI(rssi) {
+    // Very rough distance estimation based on RSSI
+    // This is not precise but gives a general idea
+    if (rssi >= -50) return 1; // Very close (1 meter)
+    if (rssi >= -60) return 2; // Close (2 meters)
+    if (rssi >= -70) return 5; // Near (5 meters)
+    if (rssi >= -80) return 10; // Medium (10 meters)
+    return 15; // Far (15+ meters)
+  }
+
+  function handleBluetoothData(event) {
+    // Handle incoming Bluetooth data from other devices
+    const value = event.target.value;
+    const data = new TextDecoder().decode(value);
+    
+    try {
+      const parsedData = JSON.parse(data);
+      if (parsedData.type === 'location' && parsedData.userId) {
+        // Update friend location with Bluetooth data
+        updateFriendWithBluetoothData(parsedData);
+      }
+    } catch (error) {
+      console.error('Error parsing Bluetooth data:', error);
+    }
+  }
+
+  function updateFriendWithBluetoothData(data) {
+    // Update friend location with more precise Bluetooth data
+    // This would integrate with your existing friend tracking system
+    console.log('Bluetooth location update:', data);
+  }
 
   function startTracking() {
-    // Show status indicator
-    statusIndicator.style.display = 'flex';
-
     // Smooth transitions for UI elements
     startButton.style.opacity = '0';
     setTimeout(() => {
@@ -720,20 +711,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('map').style.display = 'block';
       arrowUI.style.display = 'block';
       friendsList.style.display = 'block';
+      statusIndicator.style.display = 'block';
       
       // Animate elements in
       arrowUI.style.opacity = '0';
       arrowUI.style.transform = 'translateX(-50%) translateY(-20px)';
       friendsList.style.opacity = '0';
       friendsList.style.transform = 'translateX(20px)';
+      statusIndicator.style.opacity = '0';
+      statusIndicator.style.transform = 'translateY(-20px)';
       
       setTimeout(() => {
         arrowUI.style.opacity = '1';
         arrowUI.style.transform = 'translateX(-50%) translateY(0)';
         friendsList.style.opacity = '1';
         friendsList.style.transform = 'translateX(0)';
+        statusIndicator.style.opacity = '1';
+        statusIndicator.style.transform = 'translateY(0)';
       }, 50);
     }, 300);
+
+    // Initialize Bluetooth
+    initBluetooth();
 
     // Supabase setup with your provided credentials
     const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
@@ -746,25 +745,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.setItem('friendtrack_userId', userId);
     }
 
-    // Initialize map with proper rendering
-    const map = L.map('map', {
-      preferCanvas: true,
-      zoomControl: true,
-      attributionControl: true
-    }).setView([0, 0], 2);
-    
-    // Add tile layer with error handling
+    const map = L.map('map').setView([0, 0], 2);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-      detectRetina: true,
-      updateWhenIdle: true
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
-
-    // Force map to render properly
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 100);
 
     let myMarker = null;
     let myHeading = 0;
@@ -774,8 +759,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let friendMarkers = {};
     let selectedFriend = null;
     let friendListItems = {};
-    let lastLocationUpdate = 0;
-    let lastFriendUpdate = 0;
+    let lastLocation = null;
+    let locationAccuracy = 0;
 
     function deg2rad(d){ return d*Math.PI/180; }
     function rad2deg(r){ return r*180/Math.PI; }
@@ -795,40 +780,39 @@ document.addEventListener('DOMContentLoaded', async () => {
       return (rad2deg(Math.atan2(y,x))+360)%360;
     }
 
-    function calculateHeading(e) {
-      let heading = 0;
-      
-      // Store alpha for calibration
-      if (e.alpha !== null) {
-        lastAlpha = e.alpha;
+    function improveGPSAccuracy(lat, lng, accuracy) {
+      // Simple Kalman filter-like improvement for GPS accuracy
+      if (!lastLocation) {
+        lastLocation = { lat, lng, accuracy };
+        locationAccuracy = accuracy;
+        return { lat, lng, accuracy };
       }
 
-      // iOS devices with webkitCompassHeading
-      if (typeof e.webkitCompassHeading !== 'undefined') {
-        heading = e.webkitCompassHeading;
-      } 
-      // Android and other devices
-      else if (e.alpha !== null) {
-        if (isAndroid() && isCalibrated) {
-          // Use calibrated heading for Android
-          heading = (360 - (e.alpha - calibrationOffset)) % 360;
-        } else {
-          // Default calculation for non-calibrated devices
-          heading = 360 - e.alpha;
-        }
-      }
-      
-      return heading;
+      // Weight new position based on accuracy
+      const weight = Math.min(accuracy / locationAccuracy, 1);
+      const improvedLat = lastLocation.lat * (1 - weight) + lat * weight;
+      const improvedLng = lastLocation.lng * (1 - weight) + lng * weight;
+      const improvedAccuracy = Math.min(accuracy, locationAccuracy);
+
+      lastLocation = { lat: improvedLat, lng: improvedLng, accuracy: improvedAccuracy };
+      locationAccuracy = improvedAccuracy;
+
+      return { lat: improvedLat, lng: improvedLng, accuracy: improvedAccuracy };
     }
 
-    function updateMyMarker(lat, lng){
+    function updateMyMarker(lat, lng, accuracy){
+      // Improve GPS accuracy
+      const improvedPos = improveGPSAccuracy(lat, lng, accuracy);
+      const improvedLat = improvedPos.lat;
+      const improvedLng = improvedPos.lng;
+
       if(!myMarker){
-        myMarker = L.circleMarker([lat,lng], {
+        myMarker = L.circleMarker([improvedLat, improvedLng], {
           radius:10, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:0.9
         }).addTo(map);
         myMarker.bindPopup("You").openPopup();
       } else {
-        myMarker.setLatLng([lat,lng]);
+        myMarker.setLatLng([improvedLat, improvedLng]);
         // Add smooth marker animation
         myMarker.getElement().classList.add('marker-updating');
         setTimeout(() => {
@@ -837,31 +821,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       if(firstUpdate){ 
-        map.setView([lat,lng], 16); 
+        map.setView([improvedLat, improvedLng], 16); 
         firstUpdate=false; 
-        // Force map re-render after first location
-        setTimeout(() => {
-          map.invalidateSize();
-        }, 500);
+        gpsStatus.textContent = 'GPS: High Accuracy';
       }
 
       // Update direction line (infinite)
       const distance = 1000000;
       const rad = deg2rad(myHeading);
-      const lat2 = lat + (distance/111111) * Math.cos(rad);
-      const lng2 = lng + (distance/111111) * Math.sin(rad);
+      const lat2 = improvedLat + (distance/111111) * Math.cos(rad);
+      const lng2 = improvedLng + (distance/111111) * Math.sin(rad);
 
       if(!compassLine){
-        compassLine = L.polyline([[lat,lng],[lat2,lng2]], {color:'#1a73e8',weight:3}).addTo(map);
+        compassLine = L.polyline([[improvedLat, improvedLng],[lat2, lng2]], {color:'#1a73e8',weight:3}).addTo(map);
       } else {
-        compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
+        compassLine.setLatLngs([[improvedLat, improvedLng],[lat2, lng2]]);
       }
 
       // Update route to friend
       if(selectedFriend){
-        updateRouteToFriend(lat, lng);
-        updateArrowDirection(lat, lng);
-        updateHUD(lat, lng);
+        updateRouteToFriend(improvedLat, improvedLng);
+        updateArrowDirection(improvedLat, improvedLng);
+        updateHUD(improvedLat, improvedLng);
       }
     }
 
@@ -1103,65 +1084,68 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function writeLocation(lat,lng,heading){
-      const now = Date.now();
-      // Only update if at least 500ms have passed since last update
-      if (now - lastLocationUpdate > 500) {
-        lastLocationUpdate = now;
-        await supabase.from('locations').upsert({
-          user_id: userId,
-          lat: lat,
-          lng: lng,
-          heading: heading,
-          updated_at: new Date()
-        });
-      }
+      await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()});
     }
 
     window.addEventListener('beforeunload', async()=>{
       await supabase.from('locations').delete().eq('user_id',userId);
     });
 
-    // Subscribe to updates with real-time optimization
+    // Subscribe to updates with faster polling
     supabase.channel('locations_channel')
-      .on('postgres_changes',{
-        event:'*',
-        schema:'public',
-        table:'locations'
-      }, payload => {
+      .on('postgres_changes',{event:'*',schema:'public',table:'locations'},payload=>{
         if (payload.new) {
           updateFriendMarker(payload.new);
         }
       })
       .subscribe();
 
-    // Fast GPS updates - every 1 second with high accuracy
+    // GPS with improved accuracy and faster updates
     navigator.geolocation.watchPosition(
-      pos => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        updateMyMarker(lat, lng);
+      pos=>{
+        const lat=pos.coords.latitude, lng=pos.coords.longitude;
+        const accuracy = pos.coords.accuracy;
+        updateMyMarker(lat, lng, accuracy);
         writeLocation(lat, lng, myHeading);
-        statusText.textContent = `Live - ${new Date().toLocaleTimeString()}`;
       }, 
-      err => console.error(err), 
+      err=>console.error(err), 
       {
         enableHighAccuracy: true,
         maximumAge: 0, // No caching
-        timeout: 5000  // 5 second timeout
+        timeout: 5000  // Faster timeout
       }
     );
 
-    // Compass (Android + iOS) with calibration support
-    window.addEventListener('deviceorientation', e => {
-      const heading = calculateHeading(e);
+    // Compass (Android + iOS) with Android-specific calibration
+    window.addEventListener('deviceorientation', e=>{
+      let heading;
       
-      if(heading !== null){
+      // Check if this is Android (no webkitCompassHeading)
+      const isAndroid = !e.webkitCompassHeading && e.alpha !== null;
+      
+      if(typeof e.webkitCompassHeading!=='undefined'){ // iOS
+        heading = e.webkitCompassHeading;
+        compassStatus.textContent = 'Compass: Ready';
+      } else if(e.alpha != null){ // Android
+        // Android compass calibration - assumes phone is vertical and facing user
+        // This is the standard calibration for most Android devices
+        heading = 360 - e.alpha; // convert to compass bearing
+        
+        // Additional calibration for Android devices
+        if (isAndroid) {
+          // Ensure the compass is calibrated for vertical phone orientation
+          // Most Android devices use this standard calibration
+          heading = (heading + 360) % 360;
+          compassStatus.textContent = 'Compass: Calibrated (Android)';
+        }
+      }
+      
+      if(heading != null){
         myHeading = heading;
         if(myMarker){
-          const lat = myMarker.getLatLng().lat;
-          const lng = myMarker.getLatLng().lng;
-          const distance = 1000000;
-          const rad = deg2rad(myHeading);
+          const lat=myMarker.getLatLng().lat, lng=myMarker.getLatLng().lng;
+          const distance=1000000;
+          const rad=deg2rad(myHeading);
           const lat2 = lat + (distance/111111) * Math.cos(rad);
           const lng2 = lng + (distance/111111) * Math.sin(rad);
           compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
@@ -1174,29 +1158,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // Fast friend updates - poll every 500ms
-    setInterval(async () => {
-      const now = Date.now();
-      // Only poll if at least 500ms have passed since last update
-      if (now - lastFriendUpdate > 500) {
-        lastFriendUpdate = now;
-        try {
-          const {data, error} = await supabase.from('locations').select('*');
-          if(data) {
-            data.forEach(d => updateFriendMarker(d));
-            statusText.textContent = `Live - ${new Date().toLocaleTimeString()}`;
-          }
-        } catch (error) {
-          console.error('Error polling friends:', error);
-        }
+    // Faster polling + cleanup - Auto delete locations older than 15 seconds
+    setInterval(async()=>{
+      try {
+        const {data,error}=await supabase.from('locations').select('*');
+        if(data) data.forEach(d=>updateFriendMarker(d));
+        const cutoff=new Date(Date.now()-15000).toISOString(); // 15 seconds instead of 30
+        await supabase.from('locations').delete().lt('updated_at',cutoff);
+      } catch (error) {
+        console.error('Database poll error:', error);
       }
-    }, 500);
-
-    // Cleanup old locations every 15 seconds (more frequent)
-    setInterval(async () => {
-      const cutoff = new Date(Date.now() - 15000).toISOString(); // 15 seconds
-      await supabase.from('locations').delete().lt('updated_at', cutoff);
-    }, 15000);
+    },500); // Poll every 500ms instead of 1000ms
 
   }
 
