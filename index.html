@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Friend Tracker with Bluetooth & Precision Finding</title>
+<title>Friend Tracker with Precision Finding</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
 html, body { 
@@ -133,8 +133,88 @@ html, body {
 }
 
 .status-gps { background: #4CAF50; }
-.status-bluetooth { background: #2196F3; }
 .status-compass { background: #FF9800; }
+
+/* Android Compass Calibration */
+#compassCalibration {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 3000;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  text-align: center;
+  padding: 20px;
+}
+
+#calibrationCompass {
+  width: 200px;
+  height: 200px;
+  margin: 20px 0;
+  position: relative;
+}
+
+#compassCircle {
+  width: 100%;
+  height: 100%;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  position: relative;
+}
+
+#compassNeedle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 80px;
+  background: #ff4444;
+  transform-origin: 50% 0;
+  transform: translateX(-50%) rotate(0deg);
+  transition: transform 0.1s ease-out;
+}
+
+#compassDirections {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  color: white;
+  font-weight: bold;
+}
+
+.direction {
+  position: absolute;
+  font-size: 14px;
+}
+
+.n { top: 5%; left: 50%; transform: translateX(-50%); }
+.e { top: 50%; right: 5%; transform: translateY(-50%); }
+.s { bottom: 5%; left: 50%; transform: translateX(-50%); }
+.w { top: 50%; left: 5%; transform: translateY(-50%); }
+
+#calibrationInstructions {
+  max-width: 300px;
+  margin: 20px 0;
+  line-height: 1.5;
+}
+
+#calibrateButton {
+  padding: 12px 24px;
+  font-size: 16px;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 10px;
+}
 
 /* Compact Navigation HUD Styles */
 #navigationHUD {
@@ -392,6 +472,14 @@ html, body {
   }
 }
 
+@keyframes compassCalibration {
+  0% { transform: translateX(-50%) rotate(0deg); }
+  25% { transform: translateX(-50%) rotate(90deg); }
+  50% { transform: translateX(-50%) rotate(180deg); }
+  75% { transform: translateX(-50%) rotate(270deg); }
+  100% { transform: translateX(-50%) rotate(360deg); }
+}
+
 .arrow-aligned {
   opacity: 1 !important;
   animation: arrowAlign 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
@@ -423,6 +511,10 @@ html, body {
   animation: markerPulse 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
 }
 
+.calibrating {
+  animation: compassCalibration 2s linear infinite !important;
+}
+
 /* Smooth transitions for map elements */
 .leaflet-marker-icon {
   transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
@@ -451,6 +543,16 @@ html, body {
 #friendsList::-webkit-scrollbar-thumb:hover {
   background: rgba(0,0,0,0.3);
 }
+
+/* Map performance optimizations */
+.leaflet-container {
+  background: #aad3df !important;
+}
+
+.leaflet-tile {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
 </style>
 </head>
 <body>
@@ -472,13 +574,30 @@ html, body {
     <span id="gpsStatus">GPS: Acquiring</span>
   </div>
   <div class="status-item">
-    <div class="status-dot status-bluetooth"></div>
-    <span id="bluetoothStatus">Bluetooth: Off</span>
-  </div>
-  <div class="status-item">
     <div class="status-dot status-compass"></div>
     <span id="compassStatus">Compass: Calibrating</span>
   </div>
+</div>
+
+<!-- Android Compass Calibration -->
+<div id="compassCalibration">
+  <h2>Compass Calibration Required</h2>
+  <div id="calibrationCompass">
+    <div id="compassCircle">
+      <div id="compassNeedle"></div>
+      <div id="compassDirections">
+        <div class="direction n">N</div>
+        <div class="direction e">E</div>
+        <div class="direction s">S</div>
+        <div class="direction w">W</div>
+      </div>
+    </div>
+  </div>
+  <div id="calibrationInstructions">
+    <p>Hold your phone flat and level, then slowly rotate it in a full circle as shown by the moving needle.</p>
+    <p>Move your phone in a horizontal figure-8 motion for best results.</p>
+  </div>
+  <button id="calibrateButton">Start Calibration</button>
 </div>
 
 <!-- Compact Navigation HUD -->
@@ -534,15 +653,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   const friendDistance = document.getElementById('friendDistance');
   const statusIndicator = document.getElementById('statusIndicator');
   const gpsStatus = document.getElementById('gpsStatus');
-  const bluetoothStatus = document.getElementById('bluetoothStatus');
   const compassStatus = document.getElementById('compassStatus');
+  const compassCalibration = document.getElementById('compassCalibration');
+  const compassNeedle = document.getElementById('compassNeedle');
+  const calibrateButton = document.getElementById('calibrateButton');
 
-  // Bluetooth variables
-  let bluetoothDevice = null;
-  let bluetoothServer = null;
-  let bluetoothService = null;
-  let bluetoothCharacteristic = null;
-  let nearbyDevices = new Map();
+  // Compass calibration variables
+  let isAndroid = false;
+  let compassCalibrationOffset = 0;
+  let calibrationSamples = [];
+  let isCalibrating = false;
+  let calibrationStartTime = 0;
 
   // Start enhanced radar sweep animation
   sweepPath.style.animation = 'sweep 3s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite';
@@ -551,11 +672,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     navigationHUD.style.animation = 'hudSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse forwards';
     setTimeout(() => {
       navigationHUD.style.display = 'none';
-      // Hide precision arrow when closing HUD
       precisionArrow.style.display = 'none';
       directionArrow.style.display = 'block';
     }, 400);
   });
+
+  calibrateButton.addEventListener('click', () => {
+    startCompassCalibration();
+  });
+
+  function startCompassCalibration() {
+    isCalibrating = true;
+    calibrationStartTime = Date.now();
+    calibrationSamples = [];
+    compassNeedle.classList.add('calibrating');
+    calibrateButton.textContent = 'Calibrating...';
+    calibrateButton.disabled = true;
+    
+    // Auto-complete calibration after 15 seconds
+    setTimeout(() => {
+      completeCalibration();
+    }, 15000);
+  }
+
+  function completeCalibration() {
+    if (!isCalibrating) return;
+    
+    isCalibrating = false;
+    compassNeedle.classList.remove('calibrating');
+    calibrateButton.textContent = 'Calibration Complete!';
+    
+    setTimeout(() => {
+      compassCalibration.style.display = 'none';
+      compassStatus.textContent = 'Compass: Calibrated';
+    }, 1000);
+  }
+
+  function checkAndroidDevice() {
+    const userAgent = navigator.userAgent.toLowerCase();
+    isAndroid = userAgent.includes('android');
+    
+    if (isAndroid) {
+      // Show calibration screen for Android devices
+      setTimeout(() => {
+        compassCalibration.style.display = 'flex';
+      }, 1000);
+    }
+  }
 
   startButton.addEventListener('click', async () => {
     // Smooth button press animation
@@ -563,6 +726,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     setTimeout(() => {
       startButton.style.transform = 'translate(-50%, -50%) scale(1)';
     }, 150);
+
+    // Check if this is an Android device
+    checkAndroidDevice();
 
     // Ask iOS for motion/compass permission
     if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
@@ -594,114 +760,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert('Location permission denied or error: ' + error.message);
         return;
       },
-      { enableHighAccuracy: true }
+      { 
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000
+      }
     );
   });
-
-  // Bluetooth functions
-  async function initBluetooth() {
-    if (!navigator.bluetooth) {
-      bluetoothStatus.textContent = 'Bluetooth: Not Supported';
-      return;
-    }
-
-    try {
-      bluetoothStatus.textContent = 'Bluetooth: Scanning...';
-      
-      // Request Bluetooth device with our service
-      bluetoothDevice = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: ['0000ffe0-0000-1000-8000-00805f9b34fb'] // Custom service UUID
-      });
-
-      bluetoothStatus.textContent = 'Bluetooth: Connecting...';
-      
-      // Connect to the GATT server
-      bluetoothServer = await bluetoothDevice.gatt.connect();
-      
-      // Get our custom service
-      bluetoothService = await bluetoothServer.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
-      
-      // Get characteristic for data exchange
-      bluetoothCharacteristic = await bluetoothService.getCharacteristic('0000ffe1-0000-1000-8000-00805f9b34fb');
-      
-      // Start notifications
-      await bluetoothCharacteristic.startNotifications();
-      bluetoothCharacteristic.addEventListener('characteristicvaluechanged', handleBluetoothData);
-      
-      bluetoothStatus.textContent = 'Bluetooth: Connected';
-      
-      // Start scanning for nearby devices
-      startBluetoothScan();
-      
-    } catch (error) {
-      console.error('Bluetooth error:', error);
-      bluetoothStatus.textContent = 'Bluetooth: Error';
-    }
-  }
-
-  function startBluetoothScan() {
-    if (!navigator.bluetooth) return;
-
-    // Scan for nearby devices periodically
-    setInterval(async () => {
-      try {
-        const devices = await navigator.bluetooth.getDevices();
-        updateNearbyDevices(devices);
-      } catch (error) {
-        console.error('Bluetooth scan error:', error);
-      }
-    }, 2000); // Scan every 2 seconds
-  }
-
-  function updateNearbyDevices(devices) {
-    nearbyDevices.clear();
-    
-    devices.forEach(device => {
-      if (device.name && device.name.startsWith('friendtrack-')) {
-        // Estimate distance based on RSSI (very rough approximation)
-        const distance = estimateDistanceFromRSSI(device.rssi);
-        nearbyDevices.set(device.id, {
-          id: device.id,
-          name: device.name,
-          rssi: device.rssi,
-          estimatedDistance: distance
-        });
-      }
-    });
-  }
-
-  function estimateDistanceFromRSSI(rssi) {
-    // Very rough distance estimation based on RSSI
-    // This is not precise but gives a general idea
-    if (rssi >= -50) return 1; // Very close (1 meter)
-    if (rssi >= -60) return 2; // Close (2 meters)
-    if (rssi >= -70) return 5; // Near (5 meters)
-    if (rssi >= -80) return 10; // Medium (10 meters)
-    return 15; // Far (15+ meters)
-  }
-
-  function handleBluetoothData(event) {
-    // Handle incoming Bluetooth data from other devices
-    const value = event.target.value;
-    const data = new TextDecoder().decode(value);
-    
-    try {
-      const parsedData = JSON.parse(data);
-      if (parsedData.type === 'location' && parsedData.userId) {
-        // Update friend location with Bluetooth data
-        updateFriendWithBluetoothData(parsedData);
-      }
-    } catch (error) {
-      console.error('Error parsing Bluetooth data:', error);
-    }
-  }
-
-  function updateFriendWithBluetoothData(data) {
-    // Update friend location with more precise Bluetooth data
-    // This would integrate with your existing friend tracking system
-    console.log('Bluetooth location update:', data);
-  }
 
   function startTracking() {
     // Smooth transitions for UI elements
@@ -731,9 +796,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, 50);
     }, 300);
 
-    // Initialize Bluetooth
-    initBluetooth();
-
     // Supabase setup with your provided credentials
     const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
@@ -745,10 +807,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.setItem('friendtrack_userId', userId);
     }
 
-    const map = L.map('map').setView([0, 0], 2);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Initialize map with performance optimizations
+    const map = L.map('map', {
+      preferCanvas: true, // Better performance
+      zoomControl: false, // We'll add it manually if needed
+      attributionControl: false // Remove attribution for cleaner look
+    }).setView([0, 0], 2);
+
+    // Add tile layer with error handling
+    const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Add zoom control to a better position
+    L.control.zoom({
+      position: 'bottomright'
     }).addTo(map);
 
     let myMarker = null;
@@ -761,6 +835,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let friendListItems = {};
     let lastLocation = null;
     let locationAccuracy = 0;
+    let positionHistory = [];
 
     function deg2rad(d){ return d*Math.PI/180; }
     function rad2deg(r){ return r*180/Math.PI; }
@@ -780,37 +855,64 @@ document.addEventListener('DOMContentLoaded', async () => {
       return (rad2deg(Math.atan2(y,x))+360)%360;
     }
 
-    function improveGPSAccuracy(lat, lng, accuracy) {
-      // Simple Kalman filter-like improvement for GPS accuracy
-      if (!lastLocation) {
-        lastLocation = { lat, lng, accuracy };
-        locationAccuracy = accuracy;
+    function improveGPSAccuracy(lat, lng, accuracy, timestamp) {
+      // Enhanced Kalman filter for GPS smoothing
+      positionHistory.push({ lat, lng, accuracy, timestamp });
+      
+      // Keep only recent positions (last 10 seconds)
+      const tenSecondsAgo = Date.now() - 10000;
+      positionHistory = positionHistory.filter(pos => pos.timestamp > tenSecondsAgo);
+      
+      if (positionHistory.length < 2) {
         return { lat, lng, accuracy };
       }
 
-      // Weight new position based on accuracy
-      const weight = Math.min(accuracy / locationAccuracy, 1);
-      const improvedLat = lastLocation.lat * (1 - weight) + lat * weight;
-      const improvedLng = lastLocation.lng * (1 - weight) + lng * weight;
-      const improvedAccuracy = Math.min(accuracy, locationAccuracy);
+      // Weight positions based on accuracy and recency
+      let totalWeight = 0;
+      let weightedLat = 0;
+      let weightedLng = 0;
+      let bestAccuracy = accuracy;
 
-      lastLocation = { lat: improvedLat, lng: improvedLng, accuracy: improvedAccuracy };
-      locationAccuracy = improvedAccuracy;
+      positionHistory.forEach(pos => {
+        const accuracyWeight = 1 / (pos.accuracy || 1);
+        const timeWeight = 1 - (timestamp - pos.timestamp) / 10000;
+        const weight = accuracyWeight * timeWeight;
+        
+        weightedLat += pos.lat * weight;
+        weightedLng += pos.lng * weight;
+        totalWeight += weight;
+        
+        if (pos.accuracy < bestAccuracy) {
+          bestAccuracy = pos.accuracy;
+        }
+      });
 
-      return { lat: improvedLat, lng: improvedLng, accuracy: improvedAccuracy };
+      const improvedLat = weightedLat / totalWeight;
+      const improvedLng = weightedLng / totalWeight;
+      const improvedAccuracy = bestAccuracy;
+
+      return { 
+        lat: improvedLat, 
+        lng: improvedLng, 
+        accuracy: improvedAccuracy 
+      };
     }
 
-    function updateMyMarker(lat, lng, accuracy){
-      // Improve GPS accuracy
-      const improvedPos = improveGPSAccuracy(lat, lng, accuracy);
+    function updateMyMarker(lat, lng, accuracy, timestamp){
+      // Improve GPS accuracy with enhanced algorithm
+      const improvedPos = improveGPSAccuracy(lat, lng, accuracy, timestamp);
       const improvedLat = improvedPos.lat;
       const improvedLng = improvedPos.lng;
 
       if(!myMarker){
         myMarker = L.circleMarker([improvedLat, improvedLng], {
-          radius:10, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:0.9
+          radius:10, 
+          color:'#1a73e8', 
+          fillColor:'#1a73e8', 
+          fillOpacity:0.9,
+          className: 'user-marker'
         }).addTo(map);
-        myMarker.bindPopup("You").openPopup();
+        myMarker.bindPopup("You - High Precision GPS").openPopup();
       } else {
         myMarker.setLatLng([improvedLat, improvedLng]);
         // Add smooth marker animation
@@ -823,7 +925,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if(firstUpdate){ 
         map.setView([improvedLat, improvedLng], 16); 
         firstUpdate=false; 
-        gpsStatus.textContent = 'GPS: High Accuracy';
+        gpsStatus.textContent = `GPS: High Precision (${Math.round(accuracy)}m)`;
       }
 
       // Update direction line (infinite)
@@ -833,7 +935,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const lng2 = improvedLng + (distance/111111) * Math.sin(rad);
 
       if(!compassLine){
-        compassLine = L.polyline([[improvedLat, improvedLng],[lat2, lng2]], {color:'#1a73e8',weight:3}).addTo(map);
+        compassLine = L.polyline([[improvedLat, improvedLng],[lat2, lng2]], {
+          color:'#1a73e8',
+          weight:3,
+          className: 'compass-line'
+        }).addTo(map);
       } else {
         compassLine.setLatLngs([[improvedLat, improvedLng],[lat2, lng2]]);
       }
@@ -859,7 +965,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           color: '#4CAF50',
           weight: 4,
           opacity: 0.7,
-          dashArray: '10, 10'
+          dashArray: '10, 10',
+          className: 'route-line'
         }).addTo(map);
       } else {
         routeLine.setLatLngs(routeCoordinates);
@@ -989,7 +1096,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const pos=[data.lat,data.lng];
       if(!friendMarkers[data.user_id]){
         friendMarkers[data.user_id] = L.circleMarker(pos,{
-          radius:8,color:'#e81a1a',fillColor:'#e81a1a',fillOpacity:0.9
+          radius:8,
+          color:'#e81a1a',
+          fillColor:'#e81a1a',
+          fillOpacity:0.9,
+          className: 'friend-marker'
         }).addTo(map);
         
         friendMarkers[data.user_id].bindPopup(`Friend: ${data.user_id}<br>Last updated: ${new Date(data.updated_at).toLocaleTimeString()}`);
@@ -1100,43 +1211,74 @@ document.addEventListener('DOMContentLoaded', async () => {
       })
       .subscribe();
 
-    // GPS with improved accuracy and faster updates
+    // High-precision GPS with faster updates
     navigator.geolocation.watchPosition(
       pos=>{
-        const lat=pos.coords.latitude, lng=pos.coords.longitude;
+        const lat=pos.coords.latitude;
+        const lng=pos.coords.longitude;
         const accuracy = pos.coords.accuracy;
-        updateMyMarker(lat, lng, accuracy);
+        const timestamp = pos.timestamp;
+        
+        // Update GPS status with accuracy
+        if (accuracy < 10) {
+          gpsStatus.textContent = `GPS: High Precision (${Math.round(accuracy)}m)`;
+        } else if (accuracy < 50) {
+          gpsStatus.textContent = `GPS: Good (${Math.round(accuracy)}m)`;
+        } else {
+          gpsStatus.textContent = `GPS: Low (${Math.round(accuracy)}m)`;
+        }
+        
+        updateMyMarker(lat, lng, accuracy, timestamp);
         writeLocation(lat, lng, myHeading);
       }, 
-      err=>console.error(err), 
+      err=>{
+        console.error('GPS Error:', err);
+        gpsStatus.textContent = 'GPS: Error';
+      }, 
       {
         enableHighAccuracy: true,
-        maximumAge: 0, // No caching
-        timeout: 5000  // Faster timeout
+        maximumAge: 0, // No caching - always fresh data
+        timeout: 5000  // Faster timeout for quicker response
       }
     );
 
-    // Compass (Android + iOS) with Android-specific calibration
+    // Enhanced compass with Android calibration
     window.addEventListener('deviceorientation', e=>{
       let heading;
-      
-      // Check if this is Android (no webkitCompassHeading)
-      const isAndroid = !e.webkitCompassHeading && e.alpha !== null;
       
       if(typeof e.webkitCompassHeading!=='undefined'){ // iOS
         heading = e.webkitCompassHeading;
         compassStatus.textContent = 'Compass: Ready';
       } else if(e.alpha != null){ // Android
-        // Android compass calibration - assumes phone is vertical and facing user
-        // This is the standard calibration for most Android devices
-        heading = 360 - e.alpha; // convert to compass bearing
+        // Enhanced Android compass calibration
+        const alpha = e.alpha; // 0-360 degrees
+        const beta = e.beta;   // -180 to 180 degrees (front-back tilt)
+        const gamma = e.gamma; // -90 to 90 degrees (left-right tilt)
         
-        // Additional calibration for Android devices
-        if (isAndroid) {
-          // Ensure the compass is calibrated for vertical phone orientation
-          // Most Android devices use this standard calibration
-          heading = (heading + 360) % 360;
-          compassStatus.textContent = 'Compass: Calibrated (Android)';
+        // Only use compass data when phone is reasonably level
+        if (Math.abs(beta) < 45 && Math.abs(gamma) < 45) {
+          // Apply calibration offset if calibration was completed
+          heading = (360 - alpha + compassCalibrationOffset) % 360;
+          
+          // Update calibration compass needle during calibration
+          if (isCalibrating) {
+            compassNeedle.style.transform = `translateX(-50%) rotate(${heading}deg)`;
+            
+            // Collect calibration samples
+            calibrationSamples.push(heading);
+            
+            // Check if we have enough varied samples
+            if (calibrationSamples.length > 50) {
+              const sampleVariance = calculateVariance(calibrationSamples);
+              if (sampleVariance > 10000) { // Good variance indicates proper movement
+                completeCalibration();
+              }
+            }
+          }
+          
+          compassStatus.textContent = isCalibrating ? 'Compass: Calibrating...' : 'Compass: Calibrated';
+        } else {
+          compassStatus.textContent = 'Compass: Hold Level';
         }
       }
       
@@ -1158,17 +1300,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // Faster polling + cleanup - Auto delete locations older than 15 seconds
+    function calculateVariance(samples) {
+      const mean = samples.reduce((a, b) => a + b) / samples.length;
+      return samples.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / samples.length;
+    }
+
+    // Faster polling + cleanup - Auto delete locations older than 10 seconds
     setInterval(async()=>{
       try {
         const {data,error}=await supabase.from('locations').select('*');
         if(data) data.forEach(d=>updateFriendMarker(d));
-        const cutoff=new Date(Date.now()-15000).toISOString(); // 15 seconds instead of 30
+        const cutoff=new Date(Date.now()-10000).toISOString(); // 10 seconds for faster updates
         await supabase.from('locations').delete().lt('updated_at',cutoff);
       } catch (error) {
         console.error('Database poll error:', error);
       }
-    },500); // Poll every 500ms instead of 1000ms
+    },500); // Poll every 500ms for real-time updates
 
   }
 
