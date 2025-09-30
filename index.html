@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Friend Tracker with Precision Finding</title>
+<title>Friend Tracker</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
 html, body { 
@@ -32,11 +32,6 @@ html, body {
   border:none; 
   cursor:pointer;
   box-shadow:0 4px 12px rgba(0,0,0,0.25);
-  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-#startButton:hover {
-  transform: translate(-50%, -50%) scale(1.05);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
 }
 #arrowUI {
   position:absolute; 
@@ -52,7 +47,6 @@ html, body {
   font-size:16px;
   box-shadow:0 4px 12px rgba(0,0,0,0.2);
   display:none;
-  transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 #arrowImage {
   width:60px; 
@@ -60,11 +54,10 @@ html, body {
   display:block; 
   margin:0 auto 5px;
   transform-origin: 50% 50%; 
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.1s linear;
 }
 #distance { 
   font-size:18px; 
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 #friendsList {
   position:absolute; 
@@ -79,24 +72,20 @@ html, body {
   box-shadow:0 4px 12px rgba(0,0,0,0.2); 
   display:none;
   min-width:200px;
-  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 .friend-item {
   padding:8px 12px; 
   margin:5px 0; 
   border-radius:6px;
   cursor:pointer; 
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  transform-origin: center;
+  transition:background 0.2s;
 }
 .friend-item:hover { 
   background:#f0f0f0; 
-  transform: scale(1.02);
 }
 .friend-item.selected {
   background:#1a73e8; 
   color:white;
-  transform: scale(1.02);
 }
 #friendsHeader {
   font-weight:bold; 
@@ -104,8 +93,6 @@ html, body {
   padding-bottom:8px;
   border-bottom:1px solid #e0e0e0;
 }
-
-/* Status Indicators */
 #statusIndicator {
   position: absolute;
   top: 80px;
@@ -118,24 +105,19 @@ html, body {
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   display: none;
 }
-
 .status-item {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 4px 0;
 }
-
 .status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
 }
-
 .status-gps { background: #4CAF50; }
 .status-compass { background: #FF9800; }
-
-/* Android Compass Calibration */
 #compassCalibration {
   position: fixed;
   top: 0;
@@ -149,18 +131,15 @@ html, body {
   justify-content: center;
   align-items: center;
   color: white;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   text-align: center;
   padding: 20px;
 }
-
 #calibrationCompass {
   width: 250px;
   height: 250px;
   margin: 20px 0;
   position: relative;
 }
-
 #compassCircle {
   width: 100%;
   height: 100%;
@@ -169,7 +148,6 @@ html, body {
   position: relative;
   background: rgba(255,255,255,0.1);
 }
-
 #compassNeedle {
   position: absolute;
   top: 50%;
@@ -181,7 +159,6 @@ html, body {
   transform: translateX(-50%) rotate(0deg);
   transition: transform 0.1s ease-out;
 }
-
 #compassDirections {
   position: absolute;
   width: 100%;
@@ -190,24 +167,20 @@ html, body {
   font-weight: bold;
   font-size: 16px;
 }
-
 .direction {
   position: absolute;
 }
-
 .n { top: 10px; left: 50%; transform: translateX(-50%); }
 .e { top: 50%; right: 10px; transform: translateY(-50%); }
 .s { bottom: 10px; left: 50%; transform: translateX(-50%); }
 .w { top: 50%; left: 10px; transform: translateY(-50%); }
-
 #calibrationInstructions {
   max-width: 300px;
   margin: 20px 0;
   line-height: 1.5;
   font-size: 16px;
 }
-
-#calibrateButton {
+#calibrateButton, #recalibrateButton {
   padding: 12px 24px;
   font-size: 16px;
   background: #1a73e8;
@@ -216,29 +189,13 @@ html, body {
   border-radius: 8px;
   cursor: pointer;
   margin: 10px 5px;
-  transition: all 0.3s ease;
 }
-
-#calibrateButton:hover {
-  background: #0d5bb8;
-  transform: scale(1.05);
-}
-
 #recalibrateButton {
   position: absolute;
   top: 20px;
   right: 20px;
   background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  font-size: 14px;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  z-index: 3001;
 }
-
-/* Compact Navigation HUD Styles */
 #navigationHUD {
   position: fixed;
   top: 0;
@@ -252,18 +209,14 @@ html, body {
   justify-content: space-between;
   align-items: center;
   color: white;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   padding: 0 20px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  animation: hudSlideIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
-
-#hudLeft {
+#hudLeft, #hudRight {
   display: flex;
   align-items: center;
   gap: 20px;
 }
-
 #hudCenter {
   display: flex;
   flex-direction: column;
@@ -271,29 +224,16 @@ html, body {
   flex: 1;
   max-width: 400px;
 }
-
-#hudRight {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
 #radarSweep {
   width: 60px;
   height: 60px;
-  transform-origin: center;
-  animation: radarFloat 4s ease-in-out infinite;
 }
-
 #sweepPath {
   fill: none;
   stroke: rgba(128, 128, 128, 0.7);
   stroke-width: 2;
   stroke-dasharray: 5, 5;
-  transform-origin: center;
 }
-
-/* Precision Finding Arrow */
 #precisionArrow {
   width: 80px;
   height: 80px;
@@ -305,7 +245,6 @@ html, body {
   transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.6));
 }
-
 #directionArrow {
   width: 40px;
   height: 30px;
@@ -315,35 +254,22 @@ html, body {
   opacity: 0.2;
   transform-origin: center;
   transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.5));
 }
-
 #distanceIndicator {
   font-size: 24px;
   font-weight: 800;
-  font-stretch: condensed;
-  text-align: center;
-  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   margin-bottom: 5px;
-  transform-origin: center;
 }
-
 #distanceUnit {
   font-size: 14px;
   font-weight: 600;
   opacity: 0.8;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
-
 #directionText {
   font-size: 16px;
   font-weight: 400;
-  text-align: center;
   min-height: 20px;
-  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  transform-origin: center;
 }
-
 #closeHUD {
   background: rgba(255, 255, 255, 0.1);
   border: none;
@@ -356,212 +282,39 @@ html, body {
   display: flex;
   justify-content: center;
   align-items: center;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  transform-origin: center;
 }
-
-#closeHUD:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
-}
-
 #friendInfo {
   font-size: 14px;
   opacity: 0.8;
   text-align: right;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
-
-/* Super Smooth Apple-like Animations */
-@keyframes hudSlideIn {
-  0% {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes radarFloat {
-  0%, 100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-2px) rotate(1deg);
-  }
-}
-
 @keyframes sweep {
-  0% {
-    stroke-dashoffset: 0;
-    opacity: 0.7;
-    transform: rotate(0deg);
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    stroke-dashoffset: -100;
-    opacity: 0.7;
-    transform: rotate(360deg);
-  }
+  0% { stroke-dashoffset: 0; opacity: 0.7; transform: rotate(0deg); }
+  50% { opacity: 1; }
+  100% { stroke-dashoffset: -100; opacity: 0.7; transform: rotate(360deg); }
 }
-
-@keyframes arrowBob {
-  0%, 100% {
-    transform: scale(1) translateY(0);
-  }
-  25% {
-    transform: scale(1.02) translateY(-1px);
-  }
-  50% {
-    transform: scale(1.01) translateY(0);
-  }
-  75% {
-    transform: scale(1.02) translateY(-1px);
-  }
-}
-
-@keyframes arrowAlign {
-  0% {
-    transform: scale(1.1);
-    filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.8));
-  }
-  100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 20px rgba(255, 255, 255, 1));
-  }
-}
-
-@keyframes precisionPulse {
-  0%, 100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 15px rgba(76, 217, 100, 0.8));
-  }
-  50% {
-    transform: scale(1.05);
-    filter: drop-shadow(0 0 25px rgba(76, 217, 100, 1));
-  }
-}
-
-@keyframes distancePulse {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.15);
-    opacity: 0.9;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-@keyframes textSlide {
-  0% {
-    opacity: 0;
-    transform: translateY(10px) scale(0.95);
-  }
-  60% {
-    opacity: 1;
-    transform: translateY(-2px) scale(1.02);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes gentleGlow {
-  0%, 100% {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  }
-  50% {
-    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-  }
-}
-
-@keyframes markerPulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-}
-
-.arrow-aligned {
-  opacity: 1 !important;
-  animation: arrowAlign 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
-}
-
-.arrow-misaligned {
-  animation: arrowBob 2s ease-in-out infinite !important;
-}
-
+.arrow-aligned { opacity: 1 !important; }
+.arrow-misaligned { animation: arrowBob 2s ease-in-out infinite !important; }
 .precision-close {
   stroke: #4CD964 !important;
   animation: precisionPulse 1.5s ease-in-out infinite !important;
-  filter: drop-shadow(0 0 20px rgba(76, 217, 100, 0.8)) !important;
 }
-
-.distance-updating {
-  animation: distancePulse 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+@keyframes arrowBob {
+  0%, 100% { transform: scale(1) translateY(0); }
+  25% { transform: scale(1.02) translateY(-1px); }
+  50% { transform: scale(1.01) translateY(0); }
+  75% { transform: scale(1.02) translateY(-1px); }
 }
-
-.text-entering {
-  animation: textSlide 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+@keyframes precisionPulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(76, 217, 100, 0.8)); }
+  50% { transform: scale(1.05); filter: drop-shadow(0 0 25px rgba(76, 217, 100, 1)); }
 }
-
-.hud-visible {
-  animation: gentleGlow 3s ease-in-out infinite !important;
+@keyframes mapInit {
+  0% { transform: scale(1.1); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
 }
-
-.marker-updating {
-  animation: markerPulse 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
-}
-
-/* Smooth transitions for map elements */
-.leaflet-marker-icon {
-  transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
-}
-
-.leaflet-popup {
-  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
-}
-
-/* Enhanced scrollbar for friends list */
-#friendsList::-webkit-scrollbar {
-  width: 6px;
-}
-
-#friendsList::-webkit-scrollbar-track {
-  background: rgba(0,0,0,0.1);
-  border-radius: 3px;
-}
-
-#friendsList::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.2);
-  border-radius: 3px;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-#friendsList::-webkit-scrollbar-thumb:hover {
-  background: rgba(0,0,0,0.3);
-}
-
-/* Map performance optimizations */
-.leaflet-container {
-  background: #aad3df !important;
-}
-
-.leaflet-tile {
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
+.map-initializing {
+  animation: mapInit 0.3s ease-out forwards !important;
 }
 </style>
 </head>
@@ -577,7 +330,6 @@ html, body {
   <div id="friendsHeader">Select a Friend</div>
 </div>
 
-<!-- Status Indicator -->
 <div id="statusIndicator">
   <div class="status-item">
     <div class="status-dot status-gps"></div>
@@ -589,7 +341,6 @@ html, body {
   </div>
 </div>
 
-<!-- Android Compass Calibration -->
 <div id="compassCalibration">
   <button id="recalibrateButton">Recalibrate</button>
   <h2>Compass Calibration</h2>
@@ -605,14 +356,13 @@ html, body {
     </div>
   </div>
   <div id="calibrationInstructions">
-    <p><strong>Hold your phone vertically</strong> with the top pointing up and bottom pointing down.</p>
+    <p><strong>Hold your phone vertically</strong> with top pointing up.</p>
     <p><strong>Face North</strong> (use a compass app or known landmark).</p>
-    <p>Press "Calibrate North" when you're facing true North.</p>
+    <p>Press "Calibrate North" when facing true North.</p>
   </div>
   <button id="calibrateButton">Calibrate North</button>
 </div>
 
-<!-- Compact Navigation HUD -->
 <div id="navigationHUD">
   <div id="hudLeft">
     <svg id="radarSweep" viewBox="0 0 100 100">
@@ -625,14 +375,12 @@ html, body {
       <path d="M 30,20 L 50,60 L 70,20 L 60,20 L 60,80 L 40,80 L 40,20 Z" />
     </svg>
   </div>
-  
   <div id="hudCenter">
     <div id="distanceIndicator">
       <span id="distanceValue">0</span><span id="distanceUnit">ft</span>
     </div>
     <div id="directionText">Select a friend to navigate</div>
   </div>
-  
   <div id="hudRight">
     <div id="friendInfo">
       <div id="friendName">No friend selected</div>
@@ -647,7 +395,6 @@ html, body {
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
 document.addEventListener('DOMContentLoaded', async () => {
-
   const startButton = document.getElementById('startButton');
   const arrowUI = document.getElementById('arrowUI');
   const arrowImage = document.getElementById('arrowImage');
@@ -671,90 +418,51 @@ document.addEventListener('DOMContentLoaded', async () => {
   const calibrateButton = document.getElementById('calibrateButton');
   const recalibrateButton = document.getElementById('recalibrateButton');
 
-  // Compass calibration variables
   let isAndroid = false;
   let compassCalibrationOffset = 0;
   let currentCompassHeading = 0;
 
-  // Start enhanced radar sweep animation
   sweepPath.style.animation = 'sweep 3s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite';
 
   closeHUD.addEventListener('click', () => {
-    navigationHUD.style.animation = 'hudSlideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) reverse forwards';
-    setTimeout(() => {
-      navigationHUD.style.display = 'none';
-      precisionArrow.style.display = 'none';
-      directionArrow.style.display = 'block';
-    }, 400);
+    navigationHUD.style.display = 'none';
+    precisionArrow.style.display = 'none';
+    directionArrow.style.display = 'block';
   });
 
   calibrateButton.addEventListener('click', () => {
-    calibrateCompass();
+    compassCalibrationOffset = (360 - currentCompassHeading) % 360;
+    localStorage.setItem('compassCalibrationOffset', compassCalibrationOffset.toString());
+    compassCalibration.style.display = 'none';
+    compassStatus.textContent = 'Compass: Calibrated';
   });
 
   recalibrateButton.addEventListener('click', () => {
-    showCalibrationScreen();
-  });
-
-  function showCalibrationScreen() {
     compassCalibration.style.display = 'flex';
     compassStatus.textContent = 'Compass: Calibrating...';
-  }
-
-  function calibrateCompass() {
-    // When user presses calibrate, we assume they are facing North
-    // So we calculate the offset needed to make current heading = 0° (North)
-    compassCalibrationOffset = (360 - currentCompassHeading) % 360;
-    
-    // Save calibration to localStorage
-    localStorage.setItem('compassCalibrationOffset', compassCalibrationOffset.toString());
-    
-    // Hide calibration screen
-    compassCalibration.style.display = 'none';
-    compassStatus.textContent = 'Compass: Calibrated';
-    
-    // Show success message
-    alert('Compass calibrated successfully! You can recalibrate anytime using the button in the top right.');
-  }
+  });
 
   function checkAndroidDevice() {
     const userAgent = navigator.userAgent.toLowerCase();
     isAndroid = userAgent.includes('android');
-    
-    // Load saved calibration if exists
     const savedOffset = localStorage.getItem('compassCalibrationOffset');
     if (savedOffset) {
       compassCalibrationOffset = parseFloat(savedOffset);
       compassStatus.textContent = 'Compass: Calibrated';
     } else if (isAndroid) {
-      // Show calibration screen for Android devices if no calibration exists
       setTimeout(() => {
-        showCalibrationScreen();
+        compassCalibration.style.display = 'flex';
       }, 1000);
     }
   }
 
   startButton.addEventListener('click', async () => {
-    // Smooth button press animation
-    startButton.style.transform = 'translate(-50%, -50%) scale(0.95)';
-    setTimeout(() => {
-      startButton.style.transform = 'translate(-50%, -50%) scale(1)';
-    }, 150);
-
-    // Check if this is an Android device
-    checkAndroidDevice();
-
-    // Ask iOS for motion/compass permission
     if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
       try {
         const resp = await DeviceOrientationEvent.requestPermission();
-        if (resp !== 'granted') { 
-          alert('Compass permission denied. Direction features will not work.'); 
-        } else {
-          compassStatus.textContent = 'Compass: Ready';
-        }
+        if (resp !== 'granted') alert('Compass permission denied.');
+        else compassStatus.textContent = 'Compass: Ready';
       } catch (e) { 
-        console.error(e); 
         alert('Error requesting compass permission: ' + e.message);
       }
     }
@@ -764,53 +472,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       return; 
     }
 
-    // Request location permission
     navigator.geolocation.getCurrentPosition(
-      () => {
-        // Location permission granted
-        startTracking();
-      },
-      (error) => {
-        alert('Location permission denied or error: ' + error.message);
-        return;
-      },
-      { 
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 10000
-      }
+      () => startTracking(),
+      (error) => alert('Location permission denied: ' + error.message),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
   });
 
   function startTracking() {
-    // Smooth transitions for UI elements
-    startButton.style.opacity = '0';
-    setTimeout(() => {
-      startButton.style.display = 'none';
-      document.getElementById('map').style.display = 'block';
-      arrowUI.style.display = 'block';
-      friendsList.style.display = 'block';
-      statusIndicator.style.display = 'block';
-      
-      // Animate elements in
-      arrowUI.style.opacity = '0';
-      arrowUI.style.transform = 'translateX(-50%) translateY(-20px)';
-      friendsList.style.opacity = '0';
-      friendsList.style.transform = 'translateX(20px)';
-      statusIndicator.style.opacity = '0';
-      statusIndicator.style.transform = 'translateY(-20px)';
-      
-      setTimeout(() => {
-        arrowUI.style.opacity = '1';
-        arrowUI.style.transform = 'translateX(-50%) translateY(0)';
-        friendsList.style.opacity = '1';
-        friendsList.style.transform = 'translateX(0)';
-        statusIndicator.style.opacity = '1';
-        statusIndicator.style.transform = 'translateY(0)';
-      }, 50);
-    }, 300);
+    startButton.style.display = 'none';
+    document.getElementById('map').style.display = 'block';
+    arrowUI.style.display = 'block';
+    friendsList.style.display = 'block';
+    statusIndicator.style.display = 'block';
 
-    // Supabase setup with your provided credentials
+    checkAndroidDevice();
+
     const supabaseUrl = 'https://ngyjswujmvkqmqlymrhu.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5neWpzd3VqbXZrcW1xbHltcmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNzQ1NTEsImV4cCI6MjA3NDY1MDU1MX0.DZ7Nzbms9LLNgIjco9viGPD5rRjlKlbpA75kaN2mp0w';
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -821,17 +498,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.setItem('friendtrack_userId', userId);
     }
 
-    // Initialize map with performance optimizations
+    // Initialize map with scale animation
     const map = L.map('map', {
       preferCanvas: true,
       zoomControl: true,
       attributionControl: true
     }).setView([0, 0], 2);
 
-    // Add tile layer with proper error handling
+    // Add map initialization animation
+    const mapContainer = document.getElementById('map');
+    mapContainer.classList.add('map-initializing');
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
     let myMarker = null;
@@ -865,18 +545,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function improveGPSAccuracy(lat, lng, accuracy, timestamp) {
-      // Simple GPS smoothing algorithm
       positionHistory.push({ lat, lng, accuracy, timestamp });
-      
-      // Keep only recent positions (last 10 seconds)
       const tenSecondsAgo = Date.now() - 10000;
       positionHistory = positionHistory.filter(pos => pos.timestamp > tenSecondsAgo);
       
-      if (positionHistory.length < 2) {
-        return { lat, lng, accuracy };
-      }
+      if (positionHistory.length < 2) return { lat, lng, accuracy };
 
-      // Weight positions based on accuracy
       let totalWeight = 0;
       let weightedLat = 0;
       let weightedLng = 0;
@@ -887,53 +561,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         weightedLat += pos.lat * weight;
         weightedLng += pos.lng * weight;
         totalWeight += weight;
-        
-        if (pos.accuracy < bestAccuracy) {
-          bestAccuracy = pos.accuracy;
-        }
+        if (pos.accuracy < bestAccuracy) bestAccuracy = pos.accuracy;
       });
 
-      const improvedLat = weightedLat / totalWeight;
-      const improvedLng = weightedLng / totalWeight;
-      const improvedAccuracy = bestAccuracy;
-
       return { 
-        lat: improvedLat, 
-        lng: improvedLng, 
-        accuracy: improvedAccuracy 
+        lat: weightedLat / totalWeight, 
+        lng: weightedLng / totalWeight, 
+        accuracy: bestAccuracy 
       };
     }
 
     function updateMyMarker(lat, lng, accuracy, timestamp){
-      // Improve GPS accuracy
       const improvedPos = improveGPSAccuracy(lat, lng, accuracy, timestamp);
       const improvedLat = improvedPos.lat;
       const improvedLng = improvedPos.lng;
 
       if(!myMarker){
         myMarker = L.circleMarker([improvedLat, improvedLng], {
-          radius:10, 
-          color:'#1a73e8', 
-          fillColor:'#1a73e8', 
-          fillOpacity:0.9,
-          className: 'user-marker'
+          radius:10, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:0.9
         }).addTo(map);
-        myMarker.bindPopup("You - High Precision GPS").openPopup();
+        myMarker.bindPopup("You").openPopup();
       } else {
         myMarker.setLatLng([improvedLat, improvedLng]);
-        myMarker.getElement().classList.add('marker-updating');
-        setTimeout(() => {
-          myMarker.getElement().classList.remove('marker-updating');
-        }, 800);
       }
 
       if(firstUpdate){ 
         map.setView([improvedLat, improvedLng], 16); 
         firstUpdate=false; 
-        gpsStatus.textContent = `GPS: High Precision (${Math.round(accuracy)}m)`;
+        gpsStatus.textContent = `GPS: Active (${Math.round(accuracy)}m)`;
       }
 
-      // Update direction line (infinite)
       const distance = 1000000;
       const rad = deg2rad(myHeading);
       const lat2 = improvedLat + (distance/111111) * Math.cos(rad);
@@ -941,15 +598,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if(!compassLine){
         compassLine = L.polyline([[improvedLat, improvedLng],[lat2, lng2]], {
-          color:'#1a73e8',
-          weight:3,
-          className: 'compass-line'
+          color:'#1a73e8', weight:3
         }).addTo(map);
       } else {
         compassLine.setLatLngs([[improvedLat, improvedLng],[lat2, lng2]]);
       }
 
-      // Update route to friend
       if(selectedFriend){
         updateRouteToFriend(improvedLat, improvedLng);
         updateArrowDirection(improvedLat, improvedLng);
@@ -959,19 +613,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateRouteToFriend(myLat, myLng) {
       if (!selectedFriend) return;
-      
-      const routeCoordinates = [
-        [myLat, myLng],
-        [selectedFriend.lat, selectedFriend.lng]
-      ];
-      
+      const routeCoordinates = [[myLat, myLng], [selectedFriend.lat, selectedFriend.lng]];
       if(!routeLine){
         routeLine = L.polyline(routeCoordinates, {
-          color: '#4CAF50',
-          weight: 4,
-          opacity: 0.7,
-          dashArray: '10, 10',
-          className: 'route-line'
+          color: '#4CAF50', weight: 4, opacity: 0.7, dashArray: '10, 10'
         }).addTo(map);
       } else {
         routeLine.setLatLngs(routeCoordinates);
@@ -980,7 +625,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateArrowDirection(myLat, myLng) {
       if (!selectedFriend) return;
-      
       const targetBearing = bearing(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
       const diff = (targetBearing - myHeading + 360) % 360;
       arrowImage.style.transform = `rotate(${diff}deg)`;
@@ -990,16 +634,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateHUD(myLat, myLng) {
       if (!selectedFriend) return;
-      
       const targetBearing = bearing(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
       const diff = (targetBearing - myHeading + 360) % 360;
       const dist = haversine(myLat, myLng, selectedFriend.lat, selectedFriend.lng);
       const distFeet = Math.round(dist * 3.28084);
       
-      // Check if user is within 10 feet (precision finding range)
       const isCloseRange = distFeet <= 10;
-      
-      // Switch between precision arrow and regular arrow
       if (isCloseRange) {
         directionArrow.style.display = 'none';
         precisionArrow.style.display = 'block';
@@ -1012,113 +652,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         precisionArrow.classList.remove('precision-close');
       }
       
-      // Update distance with smooth animation
-      if (distanceValue.textContent !== distFeet.toString()) {
-        distanceValue.classList.add('distance-updating');
-        setTimeout(() => {
-          distanceValue.classList.remove('distance-updating');
-        }, 600);
-      }
-      
       distanceValue.textContent = distFeet;
       distanceUnit.textContent = 'ft';
-      
-      // Update friend info
       friendName.textContent = `Friend: ${selectedFriend.user_id.substring(0, 8)}...`;
       friendDistance.textContent = dist>1000 ? (dist/1000).toFixed(1)+' km' : Math.round(dist)+' m';
       
-      // Update direction text
       let directionDescription = '';
-      if (isCloseRange) {
-        directionDescription = 'very close - precision finding';
-      } else if (diff < 15 || diff > 345) {
-        directionDescription = 'straight ahead';
-        if (!isCloseRange) {
-          directionArrow.classList.add('arrow-aligned');
-          directionArrow.classList.remove('arrow-misaligned');
-        }
-      } else if (diff >= 15 && diff < 75) {
-        directionDescription = 'slightly to your right';
-        if (!isCloseRange) {
-          directionArrow.classList.remove('arrow-aligned');
-          directionArrow.classList.add('arrow-misaligned');
-        }
-      } else if (diff >= 75 && diff < 105) {
-        directionDescription = 'to your right';
-        if (!isCloseRange) {
-          directionArrow.classList.remove('arrow-aligned');
-          directionArrow.classList.add('arrow-misaligned');
-        }
-      } else if (diff >= 105 && diff < 165) {
-        directionDescription = 'behind to your right';
-        if (!isCloseRange) {
-          directionArrow.classList.remove('arrow-aligned');
-          directionArrow.classList.add('arrow-misaligned');
-        }
-      } else if (diff >= 165 && diff < 195) {
-        directionDescription = 'behind you';
-        if (!isCloseRange) {
-          directionArrow.classList.remove('arrow-aligned');
-          directionArrow.classList.add('arrow-misaligned');
-        }
-      } else if (diff >= 195 && diff < 255) {
-        directionDescription = 'behind to your left';
-        if (!isCloseRange) {
-          directionArrow.classList.remove('arrow-aligned');
-          directionArrow.classList.add('arrow-misaligned');
-        }
-      } else if (diff >= 255 && diff < 285) {
-        directionDescription = 'to your left';
-        if (!isCloseRange) {
-          directionArrow.classList.remove('arrow-aligned');
-          directionArrow.classList.add('arrow-misaligned');
-        }
-      } else {
-        directionDescription = 'slightly to your left';
-        if (!isCloseRange) {
-          directionArrow.classList.remove('arrow-aligned');
-          directionArrow.classList.add('arrow-misaligned');
-        }
-      }
+      if (isCloseRange) directionDescription = 'very close - precision finding';
+      else if (diff < 15 || diff > 345) directionDescription = 'straight ahead';
+      else if (diff >= 15 && diff < 75) directionDescription = 'slightly to your right';
+      else if (diff >= 75 && diff < 105) directionDescription = 'to your right';
+      else if (diff >= 105 && diff < 165) directionDescription = 'behind to your right';
+      else if (diff >= 165 && diff < 195) directionDescription = 'behind you';
+      else if (diff >= 195 && diff < 255) directionDescription = 'behind to your left';
+      else if (diff >= 255 && diff < 285) directionDescription = 'to your left';
+      else directionDescription = 'slightly to your left';
       
-      // Smooth text animation
-      if (directionText.textContent !== directionDescription) {
-        directionText.classList.add('text-entering');
-        setTimeout(() => {
-          directionText.textContent = directionDescription;
-        }, 200);
-        setTimeout(() => {
-          directionText.classList.remove('text-entering');
-        }, 500);
-      }
+      directionText.textContent = directionDescription;
     }
 
     function updateFriendMarker(data){
       if(data.user_id===userId) return;
-      
       const pos=[data.lat,data.lng];
       if(!friendMarkers[data.user_id]){
         friendMarkers[data.user_id] = L.circleMarker(pos,{
-          radius:8,
-          color:'#e81a1a',
-          fillColor:'#e81a1a',
-          fillOpacity:0.9,
-          className: 'friend-marker'
+          radius:8, color:'#e81a1a', fillColor:'#e81a1a', fillOpacity:0.9
         }).addTo(map);
-        
-        friendMarkers[data.user_id].bindPopup(`Friend: ${data.user_id}<br>Last updated: ${new Date(data.updated_at).toLocaleTimeString()}`);
-        
-        friendMarkers[data.user_id].on('click',()=>{ 
-          selectFriend(data);
-        });
-        
+        friendMarkers[data.user_id].bindPopup(`Friend: ${data.user_id}`);
+        friendMarkers[data.user_id].on('click',()=> selectFriend(data));
         addFriendToList(data);
       } else {
         friendMarkers[data.user_id].setLatLng(pos);
-        friendMarkers[data.user_id].getElement().classList.add('marker-updating');
-        setTimeout(() => {
-          friendMarkers[data.user_id].getElement().classList.remove('marker-updating');
-        }, 800);
         updateFriendListItem(data);
       }
       
@@ -1133,31 +697,56 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
+    function removeInactiveUsers() {
+      const now = Date.now();
+      const inactiveThreshold = 30000; // 30 seconds
+      
+      Object.keys(friendMarkers).forEach(userId => {
+        const marker = friendMarkers[userId];
+        const lastUpdate = marker.lastUpdate || 0;
+        
+        if (now - lastUpdate > inactiveThreshold) {
+          // Remove from map
+          if (map.hasLayer(marker)) {
+            map.removeLayer(marker);
+          }
+          
+          // Remove from friends list
+          const listItem = document.getElementById(`friend-${userId}`);
+          if (listItem) {
+            listItem.remove();
+          }
+          
+          // Remove from tracking objects
+          delete friendMarkers[userId];
+          delete friendListItems[userId];
+          
+          // If this was the selected friend, clear selection
+          if (selectedFriend && selectedFriend.user_id === userId) {
+            selectedFriend = null;
+            navigationHUD.style.display = 'none';
+          }
+        }
+      });
+    }
+
     function addFriendToList(data) {
       const friendItem = document.createElement('div');
       friendItem.className = 'friend-item';
       friendItem.id = `friend-${data.user_id}`;
       friendItem.textContent = `Friend: ${data.user_id.substring(0, 8)}...`;
-      friendItem.style.opacity = '0';
-      friendItem.style.transform = 'translateY(10px)';
-      
-      friendItem.addEventListener('click', () => {
-        selectFriend(data);
-      });
-      
+      friendItem.addEventListener('click', () => selectFriend(data));
       friendsList.appendChild(friendItem);
       friendListItems[data.user_id] = friendItem;
-      
-      // Smooth list item entrance
-      setTimeout(() => {
-        friendItem.style.opacity = '1';
-        friendItem.style.transform = 'translateY(0)';
-      }, 100);
     }
 
     function updateFriendListItem(data) {
       if (friendListItems[data.user_id]) {
-        friendListItems[data.user_id].textContent = `Friend: ${data.user_id.substring(0, 8)}... (${new Date(data.updated_at).toLocaleTimeString()})`;
+        friendListItems[data.user_id].textContent = `Friend: ${data.user_id.substring(0, 8)}...`;
+      }
+      // Update last active timestamp
+      if (friendMarkers[data.user_id]) {
+        friendMarkers[data.user_id].lastUpdate = Date.now();
       }
     }
 
@@ -1165,105 +754,80 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (selectedFriend && friendListItems[selectedFriend.user_id]) {
         friendListItems[selectedFriend.user_id].classList.remove('selected');
       }
-      
       selectedFriend = data;
       if (friendListItems[data.user_id]) {
         friendListItems[data.user_id].classList.add('selected');
       }
-      
-      // Show navigation HUD
       navigationHUD.style.display = 'flex';
-      navigationHUD.classList.add('hud-visible');
-      
-      // Update route and arrow direction
       if (myMarker) {
         const myPos = myMarker.getLatLng();
         updateRouteToFriend(myPos.lat, myPos.lng);
         updateArrowDirection(myPos.lat, myPos.lng);
         updateHUD(myPos.lat, myPos.lng);
       }
-      
-      // Smooth map transition
-      map.flyTo([data.lat, data.lng], map.getZoom(), {
-        duration: 1,
-        easeLinearity: 0.25
-      });
-      
-      // Open popup
-      if (friendMarkers[data.user_id]) {
-        friendMarkers[data.user_id].openPopup();
-      }
+      map.setView([data.lat, data.lng], map.getZoom());
     }
 
     async function writeLocation(lat,lng,heading){
-      await supabase.from('locations').upsert({user_id:userId,lat,lng,heading,updated_at:new Date()});
+      await supabase.from('locations').upsert({
+        user_id:userId, lat, lng, heading, updated_at:new Date()
+      });
     }
 
     window.addEventListener('beforeunload', async()=>{
       await supabase.from('locations').delete().eq('user_id',userId);
     });
 
-    // Subscribe to updates
-    supabase.channel('locations_channel')
-      .on('postgres_changes',{event:'*',schema:'public',table:'locations'},payload=>{
-        if (payload.new) {
-          updateFriendMarker(payload.new);
+    // CONSTANTLY search for new users - faster polling
+    const userSearchInterval = setInterval(async()=>{
+      try {
+        const {data,error} = await supabase.from('locations').select('*');
+        if(data) {
+          data.forEach(d => {
+            // Update last active timestamp for all found users
+            updateFriendMarker(d);
+          });
         }
-      })
-      .subscribe();
+        // Remove inactive users every check
+        removeInactiveUsers();
+      } catch (error) {
+        console.error('User search error:', error);
+      }
+    }, 2000); // Search every 2 seconds
 
-    // High-precision GPS
+    // Cleanup old locations more frequently
+    setInterval(async()=>{
+      const cutoff=new Date(Date.now()-30000).toISOString(); // 30 seconds
+      await supabase.from('locations').delete().lt('updated_at',cutoff);
+    }, 5000);
+
     navigator.geolocation.watchPosition(
       pos=>{
         const lat=pos.coords.latitude;
         const lng=pos.coords.longitude;
         const accuracy = pos.coords.accuracy;
         const timestamp = pos.timestamp;
-        
-        // Update GPS status
-        if (accuracy < 10) {
-          gpsStatus.textContent = `GPS: High Precision (${Math.round(accuracy)}m)`;
-        } else if (accuracy < 50) {
-          gpsStatus.textContent = `GPS: Good (${Math.round(accuracy)}m)`;
-        } else {
-          gpsStatus.textContent = `GPS: Low (${Math.round(accuracy)}m)`;
-        }
-        
+        gpsStatus.textContent = `GPS: Active (${Math.round(accuracy)}m)`;
         updateMyMarker(lat, lng, accuracy, timestamp);
         writeLocation(lat, lng, myHeading);
       }, 
-      err=>{
-        console.error('GPS Error:', err);
-        gpsStatus.textContent = 'GPS: Error';
-      }, 
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 5000
-      }
+      err=> gpsStatus.textContent = 'GPS: Error',
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
     );
 
-    // Enhanced compass with simple Android calibration
     window.addEventListener('deviceorientation', e=>{
       let heading;
-      
-      if(typeof e.webkitCompassHeading!=='undefined'){ // iOS
+      if(typeof e.webkitCompassHeading!=='undefined'){
         heading = e.webkitCompassHeading;
         compassStatus.textContent = 'Compass: Ready';
-      } else if(e.alpha != null){ // Android
-        // Simple Android compass - assumes phone is vertical
-        // Phone held vertically: top is up, bottom is down
+      } else if(e.alpha != null){
         heading = (360 - e.alpha + compassCalibrationOffset) % 360;
         currentCompassHeading = heading;
-        
-        // Update calibration compass needle if calibration screen is visible
         if (compassCalibration.style.display === 'flex') {
           compassNeedle.style.transform = `translateX(-50%) rotate(${heading}deg)`;
         }
-        
         compassStatus.textContent = 'Compass: Calibrated';
       }
-      
       if(heading != null){
         myHeading = heading;
         if(myMarker){
@@ -1273,7 +837,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           const lat2 = lat + (distance/111111) * Math.cos(rad);
           const lng2 = lng + (distance/111111) * Math.sin(rad);
           compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
-          
           if(selectedFriend){
             updateArrowDirection(lat, lng);
             updateHUD(lat, lng);
@@ -1281,21 +844,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     });
-
-    // Faster polling + cleanup
-    setInterval(async()=>{
-      try {
-        const {data,error}=await supabase.from('locations').select('*');
-        if(data) data.forEach(d=>updateFriendMarker(d));
-        const cutoff=new Date(Date.now()-10000).toISOString();
-        await supabase.from('locations').delete().lt('updated_at',cutoff);
-      } catch (error) {
-        console.error('Database poll error:', error);
-      }
-    },500);
-
   }
-
 });
 </script>
 </body>
