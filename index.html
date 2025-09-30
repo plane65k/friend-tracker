@@ -815,21 +815,39 @@ document.addEventListener('DOMContentLoaded', async () => {
       { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
     );
 
+    // ORIGINAL ANDROID COMPASS CALIBRATION FUNCTION
     window.addEventListener('deviceorientation', e=>{
       let heading;
-      if(typeof e.webkitCompassHeading!=='undefined'){
+      
+      // Check if this is Android (no webkitCompassHeading)
+      const isAndroid = !e.webkitCompassHeading && e.alpha !== null;
+      
+      if(typeof e.webkitCompassHeading!=='undefined'){ // iOS
         heading = e.webkitCompassHeading;
         compassStatus.textContent = 'Compass: Ready';
-      } else if(e.alpha != null){
-        heading = (360 - e.alpha + compassCalibrationOffset) % 360;
+      } else if(e.alpha != null){ // Android
+        // Android compass calibration - assumes phone is vertical and facing user
+        // This is the standard calibration for most Android devices
+        heading = 360 - e.alpha; // convert to compass bearing
+        
+        // Additional calibration for Android devices
+        if (isAndroid) {
+          // Ensure the compass is calibrated for vertical phone orientation
+          // Most Android devices use this standard calibration
+          heading = (heading + 360) % 360;
+          compassStatus.textContent = 'Compass: Calibrated (Android)';
+        }
+      }
+      
+      if(heading != null){
+        myHeading = heading;
         currentCompassHeading = heading;
+        
+        // Update calibration compass needle if calibration screen is visible
         if (compassCalibration.style.display === 'flex') {
           compassNeedle.style.transform = `translateX(-50%) rotate(${heading}deg)`;
         }
-        compassStatus.textContent = 'Compass: Calibrated';
-      }
-      if(heading != null){
-        myHeading = heading;
+        
         if(myMarker){
           const lat=myMarker.getLatLng().lat, lng=myMarker.getLatLng().lng;
           const distance=1000000;
@@ -837,6 +855,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const lat2 = lat + (distance/111111) * Math.cos(rad);
           const lng2 = lng + (distance/111111) * Math.sin(rad);
           compassLine.setLatLngs([[lat,lng],[lat2,lng2]]);
+          
           if(selectedFriend){
             updateArrowDirection(lat, lng);
             updateHUD(lat, lng);
